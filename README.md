@@ -3,12 +3,38 @@
 An under-TV game strip for a sports bar. It answers, from across the room and
 without anyone asking a bartender: **what game is this, and where is it?**
 
+Covers **NFL**, **soccer** (seven competitions) and **golf**.
+
 Built for an ultra-wide panel mounted under a television — the reference size is
 **14 in × 6 in (2.33 : 1)** — and it runs on anything from a 32:9 stretch bar
 display to a laptop browser.
 
 
 ---
+
+## Sports
+
+| Sport | Competitions | Layout |
+|---|---|---|
+| **NFL** | NFL | Two teams |
+| **Soccer** | Premier League, Champions League, MLS, LaLiga, Serie A, Bundesliga, Liga MX | Two teams |
+| **Golf** | PGA TOUR, LPGA, PGA TOUR Champions | Leaderboard |
+
+Pick one with the menu button or `?sport=nfl|soccer|golf`. Panels are
+independent, so one TV can run football while the next runs golf.
+
+Football and soccer share the two-team layout, with the football-only
+furniture (possession, timeouts, red zone) suppressed for a match and replaced
+by the competition name, a count-up clock and a goals list in the rail.
+
+Golf gets its own layout, because a field of 132 players is not two teams and
+a clock: the tournament identifies itself on the left, the top four stack on
+the right with rank, player, total to par and holes played, and the rail
+carries the next slice of the field.
+
+Add or remove competitions by editing the `SPORTS` table near the top of the
+script in `index.html` (and the matching table in `cache-proxy.mjs`). Any
+ESPN scoreboard path works — `soccer/eng.2`, `soccer/fra.1`, and so on.
 
 ## What it shows
 
@@ -34,14 +60,14 @@ URL will not work**, because a null origin fails the data feed's CORS check.
 
 ```bash
 python3 -m http.server 8080        # or: npx serve
-# then open http://localhost:8080/
+# then open http://localhost:8080/?sport=nfl
 ```
 
 Prefer the bundled server, which also caches the feed (see below):
 
 ```bash
 node cache-proxy.mjs --port 8080
-# open http://localhost:8080/?feed=/feed
+# open http://localhost:8080/?feed=/feed&sport=nfl
 ```
 
 `panels.html` renders six panels side by side so you can see a whole bar's worth
@@ -69,6 +95,7 @@ Each panel is configured entirely by URL, so six kiosk windows need no shared st
 
 | Param | Example | Meaning |
 |---|---|---|
+| `sport` | `?sport=golf` | `nfl`, `soccer` or `golf` (default `nfl`) |
 | `mode` | `?mode=network` | One of the modes above |
 | `net` | `?net=FOX` | Broadcaster to follow (implies `mode=network`) |
 | `game` | `?game=401872937` | ESPN event id (implies `mode=game`) |
@@ -83,12 +110,12 @@ Each panel is configured entirely by URL, so six kiosk windows need no shared st
 A six-screen bar:
 
 ```
-http://bar-pi.local:8080/?panel=1&net=FOX&feed=/feed&tz=America/New_York
-http://bar-pi.local:8080/?panel=2&net=CBS&feed=/feed&tz=America/New_York
-http://bar-pi.local:8080/?panel=3&net=NBC&feed=/feed&tz=America/New_York
-http://bar-pi.local:8080/?panel=4&net=ESPN&feed=/feed&tz=America/New_York
-http://bar-pi.local:8080/?panel=5&net=Prime%20Video&feed=/feed&tz=America/New_York
-http://bar-pi.local:8080/?panel=6&mode=auto&feed=/feed&tz=America/New_York
+http://bar-pi.local:8080/?panel=1&sport=nfl&net=FOX&feed=/feed&tz=America/New_York
+http://bar-pi.local:8080/?panel=2&sport=nfl&net=CBS&feed=/feed&tz=America/New_York
+http://bar-pi.local:8080/?panel=3&sport=nfl&net=NBC&feed=/feed&tz=America/New_York
+http://bar-pi.local:8080/?panel=4&sport=soccer&mode=auto&feed=/feed&tz=America/New_York
+http://bar-pi.local:8080/?panel=5&sport=golf&mode=auto&feed=/feed&tz=America/New_York
+http://bar-pi.local:8080/?panel=6&sport=nfl&mode=auto&feed=/feed&tz=America/New_York
 ```
 
 ### On-screen setup
@@ -178,17 +205,24 @@ check — they change faster than signage does.
 ## The cache proxy
 
 `cache-proxy.mjs` is optional, has no dependencies, and serves the static files
-as well as a cached copy of the feed.
+as well as a cached copy of every sport's feeds at `/feed/<sport>`.
 
 ```bash
 node cache-proxy.mjs --port 8080 --interval 10
 ```
 
-Six panels polling upstream directly is twenty-four requests a minute leaving the
-building, from one IP, for six identical payloads. Behind the proxy it is six
-requests a minute total, and a brief upstream outage leaves every panel showing
-the last good payload instead of going dark. `GET /health` reports cache age and
-the last upstream error.
+It matters more now than it did with football alone. Soccer is seven upstream
+calls and golf is three, because neither has a single all-competitions feed —
+so an unproxied soccer panel makes seven requests every poll, and six of them
+would make forty-two. Behind the proxy the whole bar costs eleven upstream
+calls every ten seconds no matter how many screens are mounted, and a partial
+upstream failure degrades to the competitions that did answer rather than
+blanking the panel. `GET /health` reports per-sport cache age, how many
+competitions came back, and the last error.
+
+Polling is paced per sport: golf's payload is roughly 1MB (per-hole scores for
+the whole field) and its leaderboard barely moves, so it polls at 60s live
+against football's 15s.
 
 ---
 

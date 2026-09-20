@@ -234,6 +234,57 @@ body.fill #stage{width:100vw;height:100vh;max-width:none;max-height:none;aspect-
 }
 #dd:empty{display:none}
 
+/* ---------- leaderboard (golf) ----------
+   Golf has no two sides and no clock, so the two-team grid does not apply:
+   the tournament identifies itself on the left and the top of the field
+   stacks on the right, which is the shape a leaderboard actually wants. */
+#lead{display:none;grid-template-columns:minmax(0,.66fr) minmax(0,1.34fr);
+  align-items:center;gap:3cqh;padding:0 3.5cqh;min-height:0}
+#stage.board #main{display:none}
+#stage.board #lead{display:grid}
+
+#lead .meta{min-width:0;display:flex;flex-direction:column;gap:1.2cqh}
+#lead .tour{
+  font-family:var(--cond);font-weight:700;font-size:12cqh;line-height:.95;
+  letter-spacing:.01em;
+  /* three lines: tournament names run long ("Biltmore Championship Asheville")
+     and the left column is narrow by design so the leaderboard gets the width */
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+#lead .rnd{
+  font-family:var(--cond);font-weight:700;font-size:7.5cqh;line-height:1;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--live);white-space:nowrap;
+}
+#stage.board:not(.live) #lead .rnd{color:var(--ink-dim)}
+#lead .where{
+  font-family:var(--cond);font-weight:600;font-size:7cqh;line-height:1;
+  color:var(--ink-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+#board{min-width:0;display:flex;flex-direction:column;gap:.9cqh}
+#board .row{
+  display:grid;grid-template-columns:11cqh minmax(0,1fr) auto auto;
+  align-items:baseline;gap:1.8cqh;
+  font-variant-numeric:tabular-nums;
+}
+#board .row.lead .who,#board .row.lead .tot{color:var(--amber)}
+#board .rk{
+  font-family:var(--cond);font-weight:600;font-size:8.5cqh;line-height:1;
+  color:var(--ink-mute);text-align:right;
+}
+#board .who{
+  font-family:var(--cond);font-weight:700;font-size:10.5cqh;line-height:1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
+}
+#board .tot{
+  font-family:var(--cond);font-weight:700;font-size:12cqh;line-height:1;
+  min-width:7cqh;text-align:right;
+}
+#board .thru{
+  font-family:var(--cond);font-weight:600;font-size:7.5cqh;line-height:1;
+  color:var(--ink-dim);min-width:9cqh;text-align:right;
+}
+
 /* ---------- bottom rail ---------- */
 #rail{
   position:relative;
@@ -590,6 +641,15 @@ body.no-chrome #burger{display:none}
 
     </div>
 
+    <div id="lead">
+      <div class="meta">
+        <div class="tour" id="gTour">—</div>
+        <div class="rnd" id="gRound"></div>
+        <div class="where" id="gWhere"></div>
+      </div>
+      <div id="board"></div>
+    </div>
+
     <div id="rail">
       <div id="badge">
         <span class="net" id="netTxt">NFL</span>
@@ -640,13 +700,19 @@ body.no-chrome #burger{display:none}
       <button class="x" id="menuClose" aria-label="Close">Close</button>
     </div>
     <div class="body">
+      <p class="lb">Sport</p>
+      <div class="quick" id="sportRow">
+        <button data-sport="nfl">NFL</button>
+        <button data-sport="soccer">Soccer</button>
+        <button data-sport="golf">Golf</button>
+      </div>
       <p class="lb">Follow</p>
       <div class="quick" id="quickRow">
         <button data-mode="auto">Best game</button>
         <button data-mode="rotate">Rotate all</button>
         <button data-mode="demo">Demo</button>
       </div>
-      <p class="lb">Today's games</p>
+      <p class="lb" id="listLabel">Today's games</p>
       <div id="gameList"></div>
     </div>
     <div class="foot">
@@ -718,13 +784,54 @@ body.no-chrome #burger{display:none}
    arrives in that single request, so one poll drives the whole display.
    ========================================================================== */
 
-const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
-// ?feed=... points the panel at a local cache proxy (see cache-proxy.mjs).
-// With six panels on one bar network that is the difference between 24
-// requests a minute leaving the building and 6.
-const FEED = new URLSearchParams(location.search).get('feed') || ESPN;
-const POLL_LIVE = 15000;   // a live game moves; ESPN caches for ~1s
-const POLL_IDLE = 90000;   // nothing in progress — back off
+const BASE = 'https://site.api.espn.com/apis/site/v2/sports/';
+
+/* Sports the panel can show. "h2h" sports (football, soccer) share the
+   two-team layout; golf is a leaderboard and gets its own. Soccer and golf
+   have no single all-competitions feed, so each is a list of competitions
+   fetched in parallel and merged. */
+const SPORTS = {
+  nfl: {
+    label: 'NFL', kind: 'h2h',
+    feeds: [{ path: 'football/nfl', tag: 'NFL' }]
+  },
+  soccer: {
+    label: 'Soccer', kind: 'h2h',
+    feeds: [
+      { path: 'soccer/eng.1',           tag: 'Premier League' },
+      { path: 'soccer/uefa.champions',  tag: 'Champions League' },
+      { path: 'soccer/usa.1',           tag: 'MLS' },
+      { path: 'soccer/esp.1',           tag: 'LaLiga' },
+      { path: 'soccer/ita.1',           tag: 'Serie A' },
+      { path: 'soccer/ger.1',           tag: 'Bundesliga' },
+      { path: 'soccer/mex.1',           tag: 'Liga MX' }
+    ]
+  },
+  golf: {
+    label: 'Golf', kind: 'board',
+    feeds: [
+      { path: 'golf/pga',             tag: 'PGA TOUR' },
+      { path: 'golf/lpga',            tag: 'LPGA' },
+      { path: 'golf/champions-tour',  tag: 'PGA TOUR Champions' }
+    ]
+  }
+};
+// ?feed=... points the panel at a local cache proxy (see cache-proxy.mjs),
+// which serves each sport at <base>/<sport>. With six panels on one bar
+// network that is the difference between dozens of requests a minute leaving
+// the building and a handful.
+const FEED_BASE = new URLSearchParams(location.search).get('feed') || '';
+
+function feedUrls(sportKey){
+  const sp = SPORTS[sportKey];
+  if (FEED_BASE) return [{ url: FEED_BASE.replace(/\/$/, '') + '/' + sportKey, multi: true }];
+  return sp.feeds.map(f => ({ url: BASE + f.path + '/scoreboard', tag: f.tag }));
+}
+// A football clock moves every few seconds; a golf leaderboard does not, and
+// its payload is an order of magnitude bigger (per-hole scores for the whole
+// field). Poll each sport at the rate its data actually changes.
+const POLL_LIVE = { nfl: 15000, soccer: 20000, golf: 60000 };
+const POLL_IDLE = { nfl: 90000, soccer: 120000, golf: 300000 };
 const ROTATE_MS = 20000;   // rotate/auto dwell time per game
 
 const $ = id => document.getElementById(id);
@@ -749,7 +856,8 @@ const cfg = {
   tz:    qs.get('tz') || store.get('tz','') || undefined,
   // ?chrome=0 removes the menu button for a panel nobody is meant to touch
   chrome: qs.get('chrome') !== '0',
-  ads:    qs.get('ads') !== '0' && store.get('ads', true)
+  ads:    qs.get('ads') !== '0' && store.get('ads', true),
+  sport:  (qs.get('sport') || store.get('sport', 'nfl')).toLowerCase()
 };
 if (qs.get('demo') === '1') cfg.mode = 'demo';
 
@@ -759,6 +867,7 @@ function applyAspect(){
   document.documentElement.style.setProperty('--arnum', (w/h).toFixed(4));
   document.body.classList.toggle('fill', !!cfg.fill);
 }
+if (!SPORTS[cfg.sport]) cfg.sport = 'nfl';
 applyAspect();
 document.body.classList.toggle('no-chrome', !cfg.chrome);
 
@@ -801,7 +910,7 @@ function downAndDistance(sit, off, def){
   return {down, spot};
 }
 
-function norm(ev){
+function normFootball(ev, tag){
   const c  = ev.competitions[0];
   const st = c.status;
   const home = c.competitors.find(t => t.homeAway === 'home') || c.competitors[0];
@@ -822,6 +931,7 @@ function norm(ev){
   });
 
   return {
+    kind: 'h2h', sport: 'nfl', comp: tag || 'NFL',
     id: ev.id,
     short: ev.shortName,
     state: st.type.state,                  // pre | in | post
@@ -857,12 +967,124 @@ function norm(ev){
   };
 }
 
+/* A soccer match is the same shape on screen — two clubs, two numbers, a
+   clock — but none of football's possession furniture exists, and the clock
+   counts up ("90'+4'") instead of down. */
+function normSoccer(ev, tag){
+  const c  = ev.competitions[0];
+  const st = c.status;
+  const home = c.competitors.find(t => t.homeAway === 'home') || c.competitors[0];
+  const away = c.competitors.find(t => t.homeAway === 'away') || c.competitors[1];
+  const nets = (c.broadcasts || []).flatMap(b => b.names || []);
+
+  const team = t => ({
+    id: t.team.id,
+    abbr: t.team.abbreviation || (t.team.shortDisplayName || '').slice(0, 3).toUpperCase(),
+    name: t.team.shortDisplayName || t.team.displayName,
+    logo: t.team.logo,
+    color: '#' + (t.team.color || '666666'),
+    alt:   '#' + (t.team.alternateColor || 'cccccc'),
+    score: parseInt(t.score, 10) || 0,
+    record: (t.records || []).find(r => r.type === 'total')?.summary || t.form || ''
+  });
+
+  // goals, in order, for the rail and the scoring banner
+  const goals = (c.details || [])
+    .filter(d => d.scoringPlay)
+    .map(d => ({
+      teamId: d.team?.id,
+      min: d.clock?.displayValue || '',
+      who: (d.athletesInvolved || [])[0]?.shortName || '',
+      own: !!d.ownGoal, pen: !!d.penaltyKick
+    }));
+  const cards = (c.details || []).filter(d => d.redCard).length;
+
+  return {
+    kind: 'h2h', sport: 'soccer', comp: tag || '',
+    id: ev.id,
+    short: ev.shortName,
+    state: st.type.state,
+    detail: st.type.shortDetail,
+    desc: st.type.description,
+    period: st.period,
+    clock: st.displayClock,
+    kickoff: new Date(ev.date),
+    venue: (c.venue || ev.venue || {}).fullName || '',
+    nets,
+    net: nets[0] || (tag || 'Soccer'),
+    home: team(home),
+    away: team(away),
+    goals, redCards: cards,
+    statusName: st.type.name,
+    odds: (c.odds || [])[0]?.details || ''
+  };
+}
+
+/* Golf is not two teams and a clock; it is a field and a leaderboard. The
+   scoreboard feed gives rank, player and total to par but no "thru", so that
+   is counted off the per-hole scores nested in the current round. */
+function normGolf(ev, tag){
+  const c  = ev.competitions[0] || {};
+  const st = c.status || ev.status || {};
+  const field = (c.competitors || []).map(t => {
+    const rounds = t.linescores || [];
+    const cur = rounds[rounds.length - 1];
+    const holes = (cur && cur.linescores ? cur.linescores.length : 0);
+    return {
+      id: t.id,
+      order: t.order ?? 999,
+      name: t.athlete?.shortName || t.athlete?.displayName || '',
+      full: t.athlete?.fullName || '',
+      flag: t.athlete?.flag?.href || '',
+      total: t.score ?? 'E',
+      today: cur ? (cur.displayValue ?? '') : '',
+      thru: holes >= 18 ? 'F' : (holes > 0 ? String(holes) : '—')
+    };
+  }).sort((a, b) => a.order - b.order);
+
+  // ESPN hands back a running order, not display ranks: equal totals tie
+  let rank = 0, prevTotal = null, seen = 0;
+  for (const p of field){
+    seen++;
+    if (p.total !== prevTotal){ rank = seen; prevTotal = p.total; }
+    p.rank = rank;
+  }
+  const counts = field.reduce((m, p) => (m[p.rank] = (m[p.rank] || 0) + 1, m), {});
+  field.forEach(p => { p.rankText = (counts[p.rank] > 1 ? 'T' : '') + p.rank; });
+
+  const nets = (c.broadcasts || []).flatMap(b => b.names || []);
+  return {
+    kind: 'board', sport: 'golf', comp: tag || 'Golf',
+    id: ev.id,
+    short: ev.shortName || ev.name,
+    name: ev.name,
+    state: (st.type || {}).state || 'pre',
+    detail: (st.type || {}).shortDetail || (st.type || {}).description || '',
+    desc: (st.type || {}).description || '',
+    round: st.period || (c.status || {}).period || null,
+    kickoff: new Date(ev.date),
+    course: ((ev.courses || [])[0] || {}).name || '',
+    nets, net: nets[0] || (tag || 'Golf'),
+    field
+  };
+}
+
+const NORMALISERS = { nfl: normFootball, soccer: normSoccer, golf: normGolf };
+
 /* ==========================================================================
    Which game does this panel show?
    ========================================================================== */
 function interest(g){
   // Ranks live games for "auto" mode: close, late, and scoring beats a blowout.
   if (g.state !== 'in') return -1;
+  if (g.kind === 'board') return 60;               // a live tournament is just on
+  if (g.sport === 'soccer'){
+    const margin = Math.abs(g.home.score - g.away.score);
+    let s = 100 - Math.min(margin, 4) * 12;
+    if ((g.period || 0) >= 2) s += 18;             // second half
+    if (margin <= 1) s += 20;                      // one goal in it
+    return s;
+  }
   const margin = Math.abs(g.home.score - g.away.score);
   let s = 100;
   s -= Math.min(margin, 28) * 2.2;          // close games win
@@ -979,12 +1201,52 @@ function dots(el, n){
 
 function render(g){
   if (!g) return;
+  stage.classList.toggle('board', g.kind === 'board');
+  if (g.kind === 'board') return renderBoard(g);
+  return renderH2H(g);
+}
+
+const BOARD_ROWS = 4;
+function renderBoard(g){
+  const live = g.state === 'in';
+  stage.classList.toggle('live', live);
+  stage.classList.remove('pre', 'final', 'redzone');
+
+  $('gTour').textContent  = g.name || g.short || '';
+  $('gRound').textContent = live
+      ? (g.round ? 'Round ' + g.round + ' · Live' : 'Live')
+      : (g.state === 'post' ? 'Final' : (g.detail || 'Upcoming'));
+  $('gWhere').textContent = [g.course, g.comp].filter(Boolean).join(' · ');
+
+  const rows = g.field.slice(0, BOARD_ROWS);
+  const sig = rows.map(p => p.rankText + p.name + p.total + p.thru).join('|');
+  const host = $('board');
+  if (host.dataset.sig !== sig){
+    host.dataset.sig = sig;
+    host.innerHTML = rows.map((p, i) =>
+      `<div class="row${i === 0 ? ' lead' : ''}">` +
+      `<span class="rk">${esc(p.rankText)}</span>` +
+      `<span class="who">${esc(p.name)}</span>` +
+      `<span class="tot">${esc(p.total)}</span>` +
+      `<span class="thru">${esc(p.thru === 'F' ? 'F' : 'thru ' + p.thru)}</span></div>`
+    ).join('') || '<div class="row"><span class="who">Field not posted yet</span></div>';
+  }
+
+  $('netTxt').textContent = g.net;
+  $('wkTxt').textContent  = (cfg.panel ? 'TV ' + cfg.panel : SPORTS[cfg.sport].label.toUpperCase());
+
+  fitOne($('gTour')); fitOne($('gRound'), .96); fitOne($('gWhere'), .96);
+  buildTicker(g);
+  adGame = g;
+}
+
+function renderH2H(g){
   const live = g.state === 'in', post = g.state === 'post', pre = g.state === 'pre';
 
   stage.classList.toggle('pre', pre);
   stage.classList.toggle('live', live);
   stage.classList.toggle('final', post);
-  stage.classList.toggle('redzone', live && g.redzone);
+  stage.classList.toggle('redzone', !!(live && g.redzone));
 
   // team colour washes + accent rules
   const ac = readable(g.away), hc = readable(g.home);
@@ -1002,14 +1264,22 @@ function render(g){
   }
 
   // possession + timeouts only mean something while the ball is in play
-  $('tAway').classList.toggle('has-ball', live && g.possId === g.away.id);
-  $('tHome').classList.toggle('has-ball', live && g.possId === g.home.id);
-  if (live){ dots($('aTO'), g.aTO); dots($('hTO'), g.hTO); }
+  const football = g.sport === 'nfl';
+  $('tAway').classList.toggle('has-ball', football && live && g.possId === g.away.id);
+  $('tHome').classList.toggle('has-ball', football && live && g.possId === g.home.id);
+  if (football && live){ dots($('aTO'), g.aTO); dots($('hTO'), g.hTO); }
   else { $('aTO').innerHTML = ''; $('hTO').innerHTML = ''; }
 
   // centre column
   const clk = $('clock'), dd = $('dd'), cd = $('cd');
-  if (live){
+  if (live && g.sport === 'soccer'){
+    $('stateTxt').textContent = g.statusName === 'STATUS_HALFTIME'
+        ? 'Half time' : 'Live · ' + half(g.period);
+    clk.textContent = g.clock || "0'";
+    clk.classList.remove('small');
+    dd.textContent = g.comp || '';
+    cd.textContent = '';
+  } else if (live){
     $('stateTxt').textContent = 'Live · ' + ordinal(g.period);
     clk.textContent = g.clock || '--:--';
     clk.classList.remove('small');
@@ -1022,7 +1292,9 @@ function render(g){
     clk.textContent = clockOnly(g.kickoff);      // zone lives in the pill above
     clk.classList.add('small');
     cd.textContent = fmtCountdown(g.kickoff - Date.now());
-    dd.textContent = [g.odds, g.ou ? 'O/U ' + g.ou : ''].filter(Boolean).join(' · ');
+    dd.textContent = g.sport === 'soccer'
+        ? (g.comp || '')
+        : [g.odds, g.ou ? 'O/U ' + g.ou : ''].filter(Boolean).join(' · ');
   } else {
     // the big word already says FINAL; the pill carries the context instead
     $('stateTxt').textContent =
@@ -1035,7 +1307,7 @@ function render(g){
 
   $('netTxt').textContent = g.net;
   $('wkTxt').textContent  = (cfg.panel ? 'TV ' + cfg.panel + ' · ' : '') +
-                            (g.week ? 'WK ' + g.week : '');
+                            (g.week ? 'WK ' + g.week : (g.comp || '').toUpperCase());
 
   detectScore(g);
   buildTicker(g);
@@ -1077,6 +1349,8 @@ function fitAll(force){
 }
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitAll(true));
 
+function half(p){ return p === 1 ? '1st Half' : p === 2 ? '2nd Half' : p > 2 ? 'Extra Time' : ''; }
+
 function ordinal(p){
   if (!p) return '';
   if (p > 4) return p === 5 ? 'OT' : (p - 4) + 'OT';
@@ -1096,7 +1370,8 @@ function detectScore(g){
   if (d <= 0) return;
 
   const t = da > dh ? g.away : g.home;
-  const label = d >= 6 ? 'TOUCHDOWN' : d === 3 ? 'FIELD GOAL'
+  const label = g.sport === 'soccer' ? 'GOAL'
+              : d >= 6 ? 'TOUCHDOWN' : d === 3 ? 'FIELD GOAL'
               : d === 2 ? 'SAFETY' : d === 1 ? 'EXTRA POINT' : 'SCORE';
 
   $('aScore').classList.remove('bump'); $('hScore').classList.remove('bump');
@@ -1122,9 +1397,26 @@ function showBanner(label, team){
    Ticker — the rail is where everything that doesn't fit upstairs lives.
    ========================================================================== */
 let tickAnim = null;
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
 function buildTicker(g){
   const segs = [];
-  const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+  if (g.kind === 'board') return buildBoardTicker(g);
+
+  if (g.sport === 'soccer'){
+    if (g.goals && g.goals.length){
+      segs.push('<span class="k">GOALS</span>', ...g.goals.map(gl => {
+        const side = gl.teamId === g.home.id ? g.home.abbr : g.away.abbr;
+        const mark = gl.pen ? ' (pen)' : gl.own ? ' (og)' : '';
+        return `${esc(side)} <span class="k">${esc(gl.min)}</span> ${esc(gl.who)}${mark}`;
+      }));
+    } else if (g.state === 'in'){
+      segs.push('<span class="dim">No goals yet</span>');
+    }
+    if (g.redCards) segs.push(`<span class="k">RED CARDS</span> ${g.redCards}`);
+    if (g.comp) segs.push(`<span class="dim">${esc(g.comp)}</span>`);
+  }
 
   if (g.state === 'in' && g.lastPlay)
     segs.push(`<span class="k">LAST PLAY</span> ${esc(g.lastPlay)}`);
@@ -1137,7 +1429,8 @@ function buildTicker(g){
   }
 
   if (g.state === 'pre'){
-    segs.push(`<span class="k">${esc(g.away.name)}</span> <span class="dim">at</span> <span class="k">${esc(g.home.name)}</span>`);
+    const vs = g.sport === 'soccer' ? 'v' : 'at';
+    segs.push(`<span class="k">${esc(g.away.name)}</span> <span class="dim">${vs}</span> <span class="k">${esc(g.home.name)}</span>`);
     if (g.odds) segs.push(`<span class="dim">LINE</span> ${esc(g.odds)}`);
   }
 
@@ -1145,10 +1438,13 @@ function buildTicker(g){
   if (g.temp != null) segs.push(`<span class="dim">${esc(g.temp)}°${g.wx ? ', ' + esc(g.wx) : ''}</span>`);
 
   // everything else around the league
-  const others = games.filter(x => x.id !== g.id);
+  const others = games.filter(x => x.id !== g.id && x.kind === 'h2h');
+  const period = x => x.sport === 'soccer'
+      ? (x.clock || half(x.period))
+      : ordinal(x.period) + ' ' + x.clock;
   const line = x => x.state === 'pre'
       ? `${esc(x.away.abbr)}–${esc(x.home.abbr)} <span class="dim">${esc(x.kickoff.toLocaleTimeString([], {hour:'numeric',minute:'2-digit',...TZ}))}</span>`
-      : `${esc(x.away.abbr)} <span class="k">${x.away.score}</span> ${esc(x.home.abbr)} <span class="k">${x.home.score}</span> <span class="dim">${esc(x.state === 'post' ? 'F' : ordinal(x.period) + ' ' + x.clock)}</span>`;
+      : `${esc(x.away.abbr)} <span class="k">${x.away.score}</span> ${esc(x.home.abbr)} <span class="k">${x.home.score}</span> <span class="dim">${esc(x.state === 'post' ? 'FT' : period(x))}</span>`;
   if (others.length) segs.push(`<span class="dim">AROUND THE LEAGUE</span>`, ...others.map(line));
 
   const html = segs.map(s => `<span class="seg">${s}</span>`).join('<span class="sep">•</span>');
@@ -1158,6 +1454,36 @@ function buildTicker(g){
   if (tick.dataset.sig === next) return;
   tick.dataset.sig = next;
   tick.innerHTML = next;
+  startMarquee();
+}
+
+/* The leaderboard shows four players; the rail carries the next slice of the
+   field, plus whatever other tournaments are running. */
+function buildBoardTicker(g){
+  const segs = [];
+  const rest = g.field.slice(BOARD_ROWS, BOARD_ROWS + 14);
+  if (rest.length){
+    segs.push('<span class="k">LEADERBOARD</span>', ...rest.map(p =>
+      `<span class="dim">${esc(p.rankText)}</span> ${esc(p.name)} <span class="k">${esc(p.total)}</span>` +
+      `<span class="dim"> ${esc(p.thru === 'F' ? 'F' : 'thru ' + p.thru)}</span>`));
+  } else {
+    segs.push(`<span class="dim">${esc(g.detail || 'Field not posted yet')}</span>`);
+  }
+  if (g.course) segs.push(`<span class="dim">${esc(g.course)}</span>`);
+
+  const otherTours = games.filter(x => x.kind === 'board' && x.id !== g.id);
+  for (const t of otherTours){
+    const top = t.field[0];
+    segs.push(`<span class="dim">${esc(t.comp)}</span> ${esc(t.short)}` +
+              (top ? ` — ${esc(top.name)} <span class="k">${esc(top.total)}</span>` : ''));
+  }
+
+  const html = segs.map(x => `<span class="seg">${x}</span>`).join('<span class="sep">•</span>');
+  const doubled = html + '<span class="sep">•</span>' + html + '<span class="sep">•</span>';
+  const tick = $('tick');
+  if (tick.dataset.sig === doubled) return;
+  tick.dataset.sig = doubled;
+  tick.innerHTML = doubled;
   startMarquee();
 }
 
@@ -1187,13 +1513,39 @@ function chip(msg, bad){
 
 async function refresh(){
   if (cfg.mode === 'demo') return;
+  const sportKey = cfg.sport;
+  const normalise = NORMALISERS[sportKey];
   try{
-    const u = new URL(FEED, location.href);
-    u.searchParams.set('_', Date.now());           // defeat any middlebox cache
-    const r = await fetch(u, {cache:'no-store'});
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const d = await r.json();
-    games = (d.events || []).map(norm);
+    const sources = feedUrls(sportKey);
+    const results = await Promise.allSettled(sources.map(async src => {
+      const u = new URL(src.url, location.href);
+      u.searchParams.set('_', Date.now());         // defeat any middlebox cache
+      const r = await fetch(u, {cache:'no-store'});
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return { src, data: await r.json() };
+    }));
+
+    if (cfg.sport !== sportKey) return;            // the sport changed mid-flight
+
+    const out = [];
+    for (const res of results){
+      if (res.status !== 'fulfilled') continue;
+      const { src, data } = res.value;
+      // the cache proxy returns one bundle of already-tagged competitions
+      const groups = src.multi && Array.isArray(data.groups)
+        ? data.groups
+        : [{ tag: src.tag, events: data.events || [] }];
+      for (const grp of groups){
+        for (const ev of (grp.events || [])){
+          try { out.push(normalise(ev, grp.tag)); } catch (e) { /* skip a bad event */ }
+        }
+      }
+    }
+    // one bad competition should not blank a panel that has the rest
+    if (!out.length && results.every(r => r.status === 'rejected'))
+      throw new Error('all feeds failed');
+
+    games = out;
     failures = 0;
     chip('');
     tickOnce();
@@ -1225,7 +1577,8 @@ function schedule(){
   clearTimeout(pollTimer);
   if (cfg.mode === 'demo') return;
   const anyLive = games.some(g => g.state === 'in');
-  const base = anyLive ? POLL_LIVE : POLL_IDLE;
+  const table = anyLive ? POLL_LIVE : POLL_IDLE;
+  const base = table[cfg.sport] ?? table.nfl;
   const backoff = Math.min(failures, 4) * 5000;
   pollTimer = setTimeout(refresh, base + backoff + Math.random() * 2000);
 }
@@ -1408,6 +1761,9 @@ function closeMenu(){
 function paintQuick(){
   [...$('quickRow').children].forEach(b =>
     b.classList.toggle('sel', b.dataset.mode === cfg.mode));
+  [...$('sportRow').children].forEach(b =>
+    b.classList.toggle('sel', b.dataset.sport === cfg.sport));
+  $('listLabel').textContent = cfg.sport === 'golf' ? "Today's tournaments" : "Today's games";
 }
 
 function paintCfg(){
@@ -1441,14 +1797,28 @@ function paintGameList(){
     (RANK[a.state] - RANK[b.state]) || (a.kickoff - b.kickoff));
 
   const row = g => {
-    const state = g.state === 'in'  ? `${g.away.score}–${g.home.score} · ${ordinal(g.period)} ${g.clock}`
-                : g.state === 'post' ? `Final ${g.away.score}–${g.home.score}`
-                : clockOnly(g.kickoff);
     const on = cfg.mode === 'game' && g.id === cfg.game;
-    return `<button data-game="${g.id}" class="${on ? 'sel' : ''}">` +
-           `<span class="bul ${g.state === 'in' ? 'live' : ''}"></span>` +
-           `<span class="mu">${g.away.abbr} @ ${g.home.abbr}</span>` +
-           `<span class="st">${state} · ${g.net}</span></button>`;
+    const dot = `<span class="bul ${g.state === 'in' ? 'live' : ''}"></span>`;
+
+    if (g.kind === 'board'){
+      const top = g.field[0];
+      const state = g.state === 'in' ? (g.round ? 'Round ' + g.round : 'Live')
+                  : g.state === 'post' ? 'Final' : clockOnly(g.kickoff);
+      const lead = top ? `${top.name} ${top.total}` : 'No field yet';
+      return `<button data-game="${g.id}" class="${on ? 'sel' : ''}">${dot}` +
+             `<span class="mu">${esc(g.short)}</span>` +
+             `<span class="st">${esc(lead)} · ${esc(state)}</span></button>`;
+    }
+
+    const sep = g.sport === 'soccer' ? 'v' : '@';
+    const per = g.sport === 'soccer' ? (g.clock || half(g.period)) : ordinal(g.period) + ' ' + g.clock;
+    const state = g.state === 'in'  ? `${g.away.score}–${g.home.score} · ${per}`
+                : g.state === 'post' ? `${g.sport === 'soccer' ? 'FT' : 'Final'} ${g.away.score}–${g.home.score}`
+                : clockOnly(g.kickoff);
+    const badge = g.sport === 'soccer' ? (g.comp || g.net) : g.net;
+    return `<button data-game="${g.id}" class="${on ? 'sel' : ''}">${dot}` +
+           `<span class="mu">${esc(g.away.abbr)} ${sep} ${esc(g.home.abbr)}</span>` +
+           `<span class="st">${esc(state)} · ${esc(badge)}</span></button>`;
   };
   const html = ordered.map(row).join('');
   if (host.dataset.sig === html) return;     // don't fight the user's scroll
@@ -1462,6 +1832,22 @@ $('gameList').addEventListener('click', e => {
   cfg.game = b.dataset.game; cfg.mode = 'game';
   store.set('game', cfg.game); store.set('mode', cfg.mode);
   tickOnce(); closeMenu();
+});
+
+$('sportRow').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.sport === cfg.sport) return;
+  cfg.sport = b.dataset.sport;
+  store.set('sport', cfg.sport);
+  // a pinned game belongs to the sport it came from
+  cfg.mode = 'auto'; cfg.game = '';
+  store.set('mode', cfg.mode); store.set('game', cfg.game);
+  games = []; current = null; failures = 0; lastRotate = 0;
+  $('gameList').dataset.sig = '';
+  $('board').dataset.sig = '';
+  $('tick').dataset.sig = '';
+  paintQuick(); paintGameList();
+  refresh();
 });
 
 $('quickRow').addEventListener('click', e => {
