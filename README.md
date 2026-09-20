@@ -92,18 +92,30 @@ http://bar-pi.local:8080/?panel=6&mode=auto&feed=/feed&tz=America/New_York
 
 ### On-screen setup
 
-Settings also persist per-browser, so a panel survives a reboot without anyone
+Settings persist per-browser, so a panel survives a reboot without anyone
 retyping a URL.
+
+**Touch** — a mounted panel shows no chrome, so the controls stay hidden until
+asked for:
+
+- **Tap** the panel for a control bar (previous / next game, game list,
+  fullscreen). It hides itself again after five seconds.
+- **Press and hold** for about half a second to open the full setup page.
+- The setup page opens on today's games, live ones first with running scores.
+  One tap pins the panel to a game.
+
+**Keyboard**
 
 | Key | Action |
 |---|---|
 | `C` | Open the setup drawer |
-| `←` `→` | Step through games |
+| `←` `→` | Step through games (live games first) |
 | `F` | Fullscreen |
 | `D` | Toggle demo mode |
 | `R` | Refresh now |
 
-On a touch panel, press and hold for about a second to open setup.
+On a phone, use landscape: the panel is a 2.33 : 1 strip and portrait
+letterboxes it to a thin band.
 
 ---
 
