@@ -273,6 +273,72 @@ body.fill #stage{width:100vw;height:100vh;max-width:none;max-height:none;aspect-
   background:linear-gradient(90deg,#06080c 0,transparent 3%,transparent 97%,#06080c 100%);
 }
 
+/* ---------- house advertising ----------
+   Two placements. While a game is live the ad takes the rail only, so the
+   score, clock and down never leave the screen — a panel that hides the game
+   to sell pretzels stops being worth looking at. Between games it takes the
+   whole strip, where it can actually be loud. */
+#railad{
+  position:absolute;inset:0;z-index:7;display:none;
+  align-items:center;gap:2cqh;padding:0 2.6cqh;
+  background:linear-gradient(90deg,#10161f,#0a0e14 60%,#080b10);
+}
+#railad.on{display:flex;animation:adin .45s cubic-bezier(.2,.9,.25,1)}
+@keyframes adin{from{opacity:0;transform:translateY(38%)}to{opacity:1;transform:none}}
+#railad img{height:20cqh;width:20cqh;object-fit:contain;flex:0 0 auto}
+/* stacked, not inline: side by side the promo line starved the item name,
+   which is the half a customer actually orders from */
+#railad .txt{min-width:0;flex:1 1 auto;display:flex;flex-direction:column;
+  align-items:flex-start;gap:.7cqh;overflow:hidden}
+#railad .kick{
+  font-family:var(--cond);font-weight:700;font-size:6.5cqh;line-height:1;
+  letter-spacing:.17em;text-transform:uppercase;color:var(--amber);
+  white-space:nowrap;max-width:100%;
+}
+#railad .name{
+  font-family:var(--cond);font-weight:700;font-size:12.5cqh;line-height:1;
+  letter-spacing:.01em;white-space:nowrap;max-width:100%;
+}
+#railad .price{
+  font-family:var(--cond);font-weight:700;font-size:12.5cqh;line-height:1;
+  color:#0a0d12;background:var(--amber);border-radius:99cqh;
+  padding:1.3cqh 2.4cqh;white-space:nowrap;flex:0 0 auto;
+}
+
+#adfull{
+  position:absolute;inset:0;z-index:7;display:none;
+  align-items:center;gap:3cqh;padding:0 3.5cqh;
+  background:radial-gradient(120% 160% at 12% 50%,#1b2430,#0a0e14 62%,#06080c);
+}
+#adfull.on{display:flex;animation:adin .5s cubic-bezier(.2,.9,.25,1)}
+#adfull img{height:42cqh;width:42cqh;object-fit:contain;flex:0 0 auto}
+#adfull .col{min-width:0;flex:1 1 auto;display:flex;flex-direction:column;gap:1.2cqh}
+#adfull .kick{
+  font-family:var(--cond);font-weight:700;font-size:9cqh;line-height:1;
+  letter-spacing:.24em;text-transform:uppercase;color:var(--amber);white-space:nowrap;
+}
+/* Item names run long ("Mini Corn Dogs Basket") and this is an ultra-wide
+   strip, so the name wraps rather than being shrunk to fit one line — two
+   big lines read from across a room, one small line does not. */
+#adfull .name{
+  font-family:var(--cond);font-weight:700;font-size:14cqh;line-height:.96;
+  text-wrap:balance;text-shadow:0 .6cqh 1.4cqh rgba(0,0,0,.5);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+#adfull .body{
+  font-family:var(--cond);font-weight:600;font-size:7cqh;line-height:1.2;
+  color:var(--ink-dim);
+  /* three lines: the takeover has the vertical room, and a description that
+     stops mid-ingredient is worse than one more line */
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+#adfull .price{
+  font-family:var(--cond);font-weight:700;font-size:18cqh;line-height:1;
+  color:#0a0d12;background:var(--amber);border-radius:3cqh;
+  padding:1.3cqh 2.4cqh;white-space:nowrap;flex:0 0 auto;
+  box-shadow:0 1cqh 3cqh rgba(0,0,0,.45);
+}
+
 /* ---------- big score banner ----------
    Covers the main row only: the rail underneath keeps crawling, so the play
    description stays on screen while the banner shouts the headline. */
@@ -530,7 +596,26 @@ body.no-chrome #burger{display:none}
         <span class="tag" id="wkTxt"></span>
       </div>
       <div id="tickwrap"><div id="tick"></div></div>
+
+      <div id="railad" aria-hidden="true">
+        <img alt="" decoding="async">
+        <div class="txt">
+          <span class="kick"></span>
+          <span class="name"></span>
+        </div>
+        <span class="price"></span>
+      </div>
     </div>
+  </div>
+
+  <div id="adfull" aria-hidden="true">
+    <img alt="" decoding="async">
+    <div class="col">
+      <div class="kick"></div>
+      <div class="name"></div>
+      <div class="body"></div>
+    </div>
+    <span class="price"></span>
   </div>
 
   <div id="banner">
@@ -565,6 +650,7 @@ body.no-chrome #burger{display:none}
       <div id="gameList"></div>
     </div>
     <div class="foot">
+      <button id="menuAds">Pause ads</button>
       <button id="menuFs">Fullscreen</button>
       <button id="menuCfg">All settings</button>
     </div>
@@ -662,7 +748,8 @@ const cfg = {
   // wrong hour. ?tz=America/New_York pins it regardless of what the box thinks.
   tz:    qs.get('tz') || store.get('tz','') || undefined,
   // ?chrome=0 removes the menu button for a panel nobody is meant to touch
-  chrome: qs.get('chrome') !== '0'
+  chrome: qs.get('chrome') !== '0',
+  ads:    qs.get('ads') !== '0' && store.get('ads', true)
 };
 if (qs.get('demo') === '1') cfg.mode = 'demo';
 
@@ -953,6 +1040,7 @@ function render(g){
   detectScore(g);
   buildTicker(g);
   fitAll();
+  stepAds(g);
 }
 
 /* Signage gets one shot at being legible: it has no scrollbars and nobody is
@@ -1152,6 +1240,79 @@ function tickOnce(){
 setInterval(tickOnce, 1000);
 
 /* ==========================================================================
+   House advertising
+
+   The brief was "every 10 seconds show the next menu item". Taken literally as
+   a full-panel takeover that would hide the score for most of a live game, so
+   during play the ad runs in the rail and the scoreboard above it never moves.
+   Between games there is no score worth protecting, so it takes the whole
+   strip. Both durations come from ads.json; ?ads=0 turns it off.
+   ========================================================================== */
+let adCfg = null, adIdx = -1, adOn = false, adFlip = 0;
+
+fetch(new URL('ads.json', location.href), {cache:'no-store'})
+  .then(r => (r.ok ? r.json() : null))
+  .then(d => {
+    if (!d || !Array.isArray(d.slides) || !d.slides.length) return;
+    adCfg = d;
+    for (const host of [$('railad'), $('adfull')]){
+      const img = host.querySelector('img');
+      if (d.brand && d.brand.logo){ img.src = new URL(d.brand.logo, location.href).href; }
+      else img.remove();
+    }
+    adFlip = Date.now() + (d.gapSeconds ?? 10) * 1000;   // let the game show first
+  })
+  .catch(() => {});                                      // no ads.json, no ads
+
+function hideAds(){
+  if (!adOn) return;
+  adOn = false;
+  $('railad').classList.remove('on');
+  $('adfull').classList.remove('on');
+}
+
+function paintAd(slide, full){
+  const host = full ? $('adfull') : $('railad');
+  const other = full ? $('railad') : $('adfull');
+  other.classList.remove('on');
+
+  const kick = [adCfg.promo?.headline, adCfg.promo?.subhead].filter(Boolean).join(' · ');
+  host.querySelector('.kick').textContent  = kick || (adCfg.brand?.name ?? '');
+  host.querySelector('.name').textContent  = slide.title || '';
+  host.querySelector('.price').textContent = slide.price || '';
+  const body = host.querySelector('.body');
+  if (body) body.textContent = slide.body || '';
+
+  host.classList.add('on');
+  fitOne(host.querySelector('.kick'));
+  // the rail keeps everything on one line, so it needs the shrink-to-fit pass;
+  // the takeover wraps instead, where measuring would be a no-op
+  if (!full) fitOne(host.querySelector('.name'));
+}
+
+function stepAds(game){
+  if (!adCfg || !cfg.ads){ hideAds(); return; }
+  // never talk over a touchdown
+  if ($('banner').classList.contains('on')){ hideAds(); adFlip = Date.now() + 1500; return; }
+
+  const now = Date.now();
+  if (now < adFlip) return;
+
+  const showSecs = (adCfg.adSeconds  ?? 10) * 1000;
+  const gapSecs  = (adCfg.gapSeconds ?? 10) * 1000;
+
+  if (adOn){
+    hideAds();
+    adFlip = now + gapSecs;
+  } else {
+    adIdx = (adIdx + 1) % adCfg.slides.length;
+    adOn = true;
+    paintAd(adCfg.slides[adIdx], !game || game.state !== 'in');
+    adFlip = now + showSecs;
+  }
+}
+
+/* ==========================================================================
    Demo simulator — so this can be shown on a Tuesday morning with no
    football anywhere. Drives a plausible game through the same render path.
    ========================================================================== */
@@ -1227,6 +1388,7 @@ function openMenu(){
   burger.setAttribute('aria-expanded', 'true');
   document.body.classList.add('ui-on');
   paintQuick(); paintGameList();
+  $('menuAds').textContent = cfg.ads ? 'Pause ads' : 'Resume ads';
   $('menuClose').focus();
 }
 function closeMenu(){
@@ -1307,6 +1469,12 @@ burger.addEventListener('click', e => {
 });
 $('menuClose').addEventListener('click', closeMenu);
 menu.addEventListener('click', e => { if (e.target === menu) closeMenu(); });
+$('menuAds').addEventListener('click', () => {
+  cfg.ads = !cfg.ads;
+  store.set('ads', cfg.ads);
+  if (!cfg.ads) hideAds(); else adFlip = 0;
+  $('menuAds').textContent = cfg.ads ? 'Pause ads' : 'Resume ads';
+});
 $('menuFs').addEventListener('click', () => { goFs(); closeMenu(); });
 $('menuCfg').addEventListener('click', () => { closeMenu(); openCfg(); });
 

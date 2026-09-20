@@ -1,0 +1,46 @@
+{
+  "_comment": "House advertising for the panel. Edit this file to change what runs — no code changes needed. Bodies are trimmed for a 6-inch strip, not copied verbatim from the printed menu. Set \"slides\": [] to turn advertising off entirely.",
+  "brand": {
+    "name": "Brew's Tavern",
+    "tagline": "Eat · Drink · Enjoy",
+    "logo": "assets/brews-tavern-logo.png"
+  },
+  "promo": {
+    "headline": "Sunday Funday",
+    "subhead": "Bites & Beers"
+  },
+  "adSeconds": 10,
+  "gapSeconds": 10,
+  "slides": [
+    {
+      "price": "$9.95",
+      "title": "Pretzel Bites Basket",
+      "body": "Lightly salted soft pretzels, spicy queso dip"
+    },
+    {
+      "price": "$9.95",
+      "title": "Jalapeño Poppers",
+      "body": "Breaded and fried, cream cheese, ranch · 8 per order"
+    },
+    {
+      "price": "$9.95",
+      "title": "Potato Skins",
+      "body": "Loaded with cheddar and bacon, sour cream · 4 per order"
+    },
+    {
+      "price": "$9.95",
+      "title": "Mini Corn Dogs Basket",
+      "body": "Golden fried, spicy brown mustard"
+    },
+    {
+      "price": "$9.95",
+      "title": "Chicken Sliders",
+      "body": "Fried or grilled, sauce of choice, pickle chip · 3 per order"
+    },
+    {
+      "price": "$2.95",
+      "title": "Bottles & Cans",
+      "body": "Bud Light · Budweiser · Coors Light · Michelob Ultra · Miller Lite · PBR"
+    }
+  ]
+}

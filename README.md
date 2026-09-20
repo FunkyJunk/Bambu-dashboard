@@ -122,6 +122,52 @@ letterboxes it to a thin band.
 
 ---
 
+## House advertising
+
+`ads.json` drives a rotation of menu items. Edit that file — no code changes —
+and set `"slides": []` to switch advertising off.
+
+```json
+{
+  "brand":  { "name": "Brew's Tavern", "logo": "assets/brews-tavern-logo.png" },
+  "promo":  { "headline": "Sunday Funday", "subhead": "Bites & Beers" },
+  "adSeconds": 10,
+  "gapSeconds": 10,
+  "slides": [ { "price": "$9.95", "title": "Pretzel Bites Basket", "body": "…" } ]
+}
+```
+
+Two placements, chosen by what the game is doing:
+
+| When | Placement |
+|---|---|
+| **A game is live** | The ad takes the bottom rail only. Score, clock, down &amp; distance and the red-zone alert stay on screen the whole time |
+| **Before kickoff, at the final, or with no game on** | The ad takes the whole strip — big logo, item and price |
+
+`adSeconds` is how long an item shows; `gapSeconds` is how long the game
+information gets in between. At the default `10` / `10` the panel alternates
+every ten seconds. Set `gapSeconds` to `0` for continuous advertising.
+
+Scoring suppresses advertising: the touchdown banner always wins, and the
+rotation resumes after it clears. Staff can pause the rotation from the game
+menu, or `?ads=0` disables it for one panel.
+
+### The logo
+
+`assets/brews-tavern-logo.png` was recovered from a phone photograph of a
+laminated menu: cropped to the bottle cap, white-balanced to remove the
+laminate's colour cast, and masked to a transparent circle. It reads well at
+panel size, but it is a photograph of a print, not artwork. **Replace it with
+the real vector or high-resolution file before this goes on a screen** — point
+`brand.logo` at the new file.
+
+Body text in `ads.json` is trimmed for a six-inch strip rather than copied
+verbatim from the printed menu. Check the wording against what the kitchen
+actually serves before it goes live, and treat prices as needing the same
+check — they change faster than signage does.
+
+---
+
 ## The cache proxy
 
 `cache-proxy.mjs` is optional, has no dependencies, and serves the static files
