@@ -2,8 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>NFL Rail — Under-TV Game Strip</title>
+
+<!-- Installing to the home screen is the only way to lose the browser chrome
+     on iOS: Safari has never supported the Fullscreen API for ordinary
+     elements, so the Fullscreen control below is a no-op there. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#07090d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rail">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="icon" href="assets/icon-192.png" sizes="192x192" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@600;700&display=swap" rel="stylesheet">
@@ -535,6 +547,17 @@ body.no-chrome #burger{display:none}
   text-underline-offset:3px;
 }
 #menu .foot button:hover{color:var(--ink)}
+#installHint{
+  margin:14px 0 2px;padding:13px 15px;border-radius:10px;
+  background:#161b24;border:1px solid rgba(255,255,255,.1);
+  font-size:14px;line-height:1.65;color:var(--ink-dim);
+}
+#installHint b{color:var(--ink);font-weight:600}
+#installHint .step{display:block;margin-top:5px}
+#installHint kbd{
+  font-family:inherit;background:#222a36;border:1px solid rgba(255,255,255,.13);
+  border-radius:5px;padding:1px 7px;color:var(--ink);font-size:13px;
+}
 
 /* tappable game list */
 #gameList{display:grid;gap:8px;grid-template-columns:1fr}
@@ -753,6 +776,7 @@ body.no-chrome #burger{display:none}
       </div>
       <p class="lb" id="listLabel">Today's games</p>
       <div id="gameList"></div>
+      <div id="installHint" hidden></div>
     </div>
     <div class="foot">
       <button id="menuAds">Pause ads</button>
@@ -1856,7 +1880,8 @@ function openMenu(){
   menu.classList.add('on');
   burger.setAttribute('aria-expanded', 'true');
   document.body.classList.add('ui-on');
-  paintQuick(); paintGameList();
+  paintQuick(); paintGameList(); paintFsButton();
+  $('installHint').hidden = true;
   $('menuAds').textContent = cfg.ads ? 'Pause ads' : 'Resume ads';
   $('menuClose').focus();
 }
@@ -1977,7 +2002,18 @@ $('menuAds').addEventListener('click', () => {
   if (!cfg.ads) hideAds(); else adFlip = 0;
   $('menuAds').textContent = cfg.ads ? 'Pause ads' : 'Resume ads';
 });
-$('menuFs').addEventListener('click', () => { goFs(); closeMenu(); });
+$('menuFs').addEventListener('click', async () => {
+  if (isStandalone()) return;
+  if (fsAvailable){ goFs(); closeMenu(); return; }
+  if (installPrompt){
+    installPrompt.prompt();
+    try { await installPrompt.userChoice; } catch (e) {}
+    installPrompt = null;
+    paintFsButton();
+    return;
+  }
+  showInstallHint();                         // iOS: tell them the one route that works
+});
 $('menuCfg').addEventListener('click', () => { closeMenu(); openCfg(); });
 
 $('modeRow').addEventListener('click', e => {
@@ -1997,8 +2033,69 @@ $('arSel').addEventListener('change', e => {
 $('fillBtn').addEventListener('click', () => {
   cfg.fill = !cfg.fill; store.set('fill', cfg.fill); applyAspect(); startMarquee(); paintCfg();
 });
-const goFs = () => (document.fullscreenElement ? document.exitFullscreen() :
-                    document.documentElement.requestFullscreen().catch(()=>{}));
+/* Fullscreen, honestly.
+   Chromium (kiosk sticks, Android, desktop) has the Fullscreen API. iOS Safari
+   has never supported it for anything but a <video>, so on an iPhone the only
+   way to lose the browser chrome is to install the page to the home screen —
+   which the manifest and apple-mobile-web-app-capable above make work. The
+   control says whichever of those two is actually available. */
+const root = document.documentElement;
+const fsAvailable = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+const isStandalone = () =>
+  (window.matchMedia && (matchMedia('(display-mode: fullscreen)').matches ||
+                         matchMedia('(display-mode: standalone)').matches)) ||
+  navigator.standalone === true;
+
+const goFs = () => {
+  if (!fsAvailable) return false;
+  if (document.fullscreenElement || document.webkitFullscreenElement){
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else {
+    const req = root.requestFullscreen || root.webkitRequestFullscreen;
+    const r = req.call(root);
+    if (r && r.catch) r.catch(() => {});
+  }
+  return true;
+};
+
+// Chromium offers a real install prompt; hold on to it if it arrives.
+let installPrompt = null;
+addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  installPrompt = e;
+  if (menu.classList.contains('on')) paintFsButton();
+});
+
+const isIOS = () => /iP(hone|ad|od)/.test(navigator.platform || '') ||
+  (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+
+function paintFsButton(){
+  const btn = $('menuFs');
+  if (isStandalone()){
+    btn.textContent = 'Already fullscreen';
+    btn.disabled = true;
+    return;
+  }
+  btn.disabled = false;
+  btn.textContent = fsAvailable ? 'Fullscreen'
+                  : (installPrompt ? 'Install this panel' : 'Hide browser bars');
+}
+
+function showInstallHint(){
+  const el = $('installHint');
+  el.hidden = false;
+  el.innerHTML = isIOS()
+    ? '<b>iOS has no fullscreen for web pages.</b> Safari only allows it for video, ' +
+      'so the browser bars cannot be hidden from inside the page. Installing it ' +
+      'gets you the same result:' +
+      '<span class="step">1. Tap the <kbd>Share</kbd> button in Safari.</span>' +
+      '<span class="step">2. Choose <kbd>Add to Home Screen</kbd>.</span>' +
+      '<span class="step">3. Open it from the home screen — no address bar, and it ' +
+      'opens in landscape.</span>'
+    : '<b>This browser will not let the page go fullscreen.</b> Use your browser\'s ' +
+      'own fullscreen control, or install the panel from the address bar menu so it ' +
+      'opens in its own window.';
+}
 $('fsBtn').addEventListener('click', goFs);
 $('cfgClose').addEventListener('click', closeCfg);
 
@@ -2010,7 +2107,7 @@ addEventListener('keydown', e => {
   }
   if (k === 'm') return menu.classList.contains('on') ? closeMenu() : openMenu();
   if (k === 'c') return drawer.classList.contains('on') ? closeCfg() : openCfg();
-  if (k === 'f') return goFs();
+  if (k === 'f'){ if (!goFs()){ openMenu(); showInstallHint(); } return; }
   if (k === 'r') return refresh();
   if (k === 'd'){
     cfg.mode = cfg.mode === 'demo' ? 'auto' : 'demo';
@@ -2041,6 +2138,8 @@ $('rotateDismiss').addEventListener('click', () => {
   try { localStorage.setItem('nflrail.rotdone', '1'); } catch (e) {}
 });
 addEventListener('orientationchange', () => setTimeout(() => { fitAll(true); startMarquee(); }, 250));
+['fullscreenchange','webkitfullscreenchange'].forEach(ev =>
+  addEventListener(ev, () => setTimeout(() => { applyAspect(); fitAll(true); startMarquee(); }, 120)));
 
 ['aLogo','hLogo','bLogo'].forEach(id => {
   const el = $(id);

@@ -238,6 +238,24 @@ against football's 15s.
 
 ---
 
+## Fullscreen
+
+| Where | How |
+|---|---|
+| **Stick PC / Raspberry Pi** | `chromium-browser --kiosk` (below). Nothing else needed |
+| **Android, desktop Chrome/Edge/Firefox** | Menu button → **Fullscreen**, or press `F` |
+| **iPhone / iPad** | Share → **Add to Home Screen**, then open it from there |
+
+iOS is the odd one out and it is not a bug in this page: Safari has never
+supported the Fullscreen API for anything but a `<video>`, so no web page can
+hide the browser bars from inside itself. Installing to the home screen gets
+the same result — the manifest asks for fullscreen and landscape, so the
+installed panel opens with no address bar.
+
+The panel detects which of these is available and the menu control says so:
+**Fullscreen** where the API exists, **Install this panel** where the browser
+offers it, and **Hide browser bars** — with the Share-sheet steps — on iOS.
+
 ## Deploying on a stick PC
 
 Chromium in kiosk mode on a Raspberry Pi or any cheap Android/x86 stick:
