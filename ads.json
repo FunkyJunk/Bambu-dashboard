@@ -1,5 +1,5 @@
 {
-  "_comment": "House advertising for the panel. Edit this file to change what runs — no code changes needed. Bodies are trimmed for a 6-inch strip, not copied verbatim from the printed menu. Set \"slides\": [] to turn advertising off entirely.",
+  "_comment": "House advertising for the panel. Edit this file to change what runs — no code changes needed. adSeconds is how long a slide holds between games; liveAdSeconds is the shorter hold while a game is in progress. Set livePlacement to \"rail\" to keep the scoreboard visible during play instead of covering it. Bodies are trimmed for a 6-inch strip, not copied verbatim from the printed menu. Set \"slides\": [] to turn advertising off entirely.",
   "brand": {
     "name": "Brew's Tavern",
     "tagline": "Eat · Drink · Enjoy",
@@ -10,6 +10,8 @@
     "subhead": "Bites & Beers"
   },
   "adSeconds": 10,
+  "liveAdSeconds": 5,
+  "livePlacement": "takeover",
   "gapSeconds": 10,
   "slides": [
     {

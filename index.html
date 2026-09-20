@@ -1040,7 +1040,7 @@ function render(g){
   detectScore(g);
   buildTicker(g);
   fitAll();
-  stepAds(g);
+  adGame = g;
 }
 
 /* Signage gets one shot at being legible: it has no scrollbars and nobody is
@@ -1242,13 +1242,18 @@ setInterval(tickOnce, 1000);
 /* ==========================================================================
    House advertising
 
-   The brief was "every 10 seconds show the next menu item". Taken literally as
-   a full-panel takeover that would hide the score for most of a live game, so
-   during play the ad runs in the rail and the scoreboard above it never moves.
-   Between games there is no score worth protecting, so it takes the whole
-   strip. Both durations come from ads.json; ?ads=0 turns it off.
+   Two placements and two durations, all from ads.json. By default the ad takes
+   the whole strip whether or not a game is on, but it holds for liveAdSeconds
+   during play and the longer adSeconds between games, so a live score is
+   covered for as little time as possible. Setting livePlacement to "rail"
+   keeps the scoreboard up during play and runs the ad in the bottom band
+   instead. ?ads=0 turns advertising off for one panel.
    ========================================================================== */
-let adCfg = null, adIdx = -1, adOn = false, adFlip = 0;
+let adCfg = null, adIdx = -1, adOn = false, adFlip = 0, adGame = null;
+
+// The render loop runs at 1 Hz, which would turn a five-second ad into
+// anything from five to six seconds. Step the rotation on its own timer.
+setInterval(() => stepAds(adGame), 250);
 
 fetch(new URL('ads.json', location.href), {cache:'no-store'})
   .then(r => (r.ok ? r.json() : null))
@@ -1298,8 +1303,12 @@ function stepAds(game){
   const now = Date.now();
   if (now < adFlip) return;
 
-  const showSecs = (adCfg.adSeconds  ?? 10) * 1000;
+  const live     = !!game && game.state === 'in';
+  const showSecs = (live ? (adCfg.liveAdSeconds ?? adCfg.adSeconds ?? 10)
+                         : (adCfg.adSeconds ?? 10)) * 1000;
   const gapSecs  = (adCfg.gapSeconds ?? 10) * 1000;
+  // a live game keeps its scoreboard only if the venue asked for the rail
+  const full     = !live || (adCfg.livePlacement ?? 'takeover') !== 'rail';
 
   if (adOn){
     hideAds();
@@ -1307,7 +1316,7 @@ function stepAds(game){
   } else {
     adIdx = (adIdx + 1) % adCfg.slides.length;
     adOn = true;
-    paintAd(adCfg.slides[adIdx], !game || game.state !== 'in');
+    paintAd(adCfg.slides[adIdx], full);
     adFlip = now + showSecs;
   }
 }

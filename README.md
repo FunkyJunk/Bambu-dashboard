@@ -137,16 +137,23 @@ and set `"slides": []` to switch advertising off.
 }
 ```
 
-Two placements, chosen by what the game is doing:
+The ad takes over the whole strip — big logo, item and price — and holds for
+a different length of time depending on whether football is on:
 
-| When | Placement |
-|---|---|
-| **A game is live** | The ad takes the bottom rail only. Score, clock, down &amp; distance and the red-zone alert stay on screen the whole time |
-| **Before kickoff, at the final, or with no game on** | The ad takes the whole strip — big logo, item and price |
+| When | Hold | Setting |
+|---|---|---|
+| **A game is live** | 5 seconds | `liveAdSeconds` |
+| **Before kickoff, at the final, or no game on** | 10 seconds | `adSeconds` |
 
-`adSeconds` is how long an item shows; `gapSeconds` is how long the game
-information gets in between. At the default `10` / `10` the panel alternates
-every ten seconds. Set `gapSeconds` to `0` for continuous advertising.
+`gapSeconds` is how long the game gets in between, 10 seconds by default. So
+during play the cycle is ten seconds of football, five seconds of menu. Set
+`gapSeconds` to `0` for continuous advertising.
+
+Covering a live score is a real cost, and the shorter live hold is the only
+thing limiting it. If it turns out to be too much on a busy Sunday, set
+`"livePlacement": "rail"` and the ad moves to the bottom band during play
+instead, leaving the score, clock, down &amp; distance and red-zone alert up the
+whole time. Nothing else changes.
 
 Scoring suppresses advertising: the touchdown banner always wins, and the
 rotation resumes after it clears. Staff can pause the rotation from the game
