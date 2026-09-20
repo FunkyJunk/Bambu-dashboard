@@ -73,6 +73,7 @@ Each panel is configured entirely by URL, so six kiosk windows need no shared st
 | `net` | `?net=FOX` | Broadcaster to follow (implies `mode=network`) |
 | `game` | `?game=401872937` | ESPN event id (implies `mode=game`) |
 | `panel` | `?panel=3` | Labels the rail badge `TV 3` |
+| `chrome` | `?chrome=0` | Hide the menu button — for a mounted panel |
 | `tz` | `?tz=America/New_York` | Force the display timezone. Worth setting — a signage stick with a wrong system clock will otherwise print kickoffs in the wrong hour |
 | `ar` | `?ar=32/9` | Panel aspect ratio (default `14/6`) |
 | `fill` | `?fill=1` | Stretch to the viewport instead of letterboxing to `ar` |
@@ -95,20 +96,22 @@ http://bar-pi.local:8080/?panel=6&mode=auto&feed=/feed&tz=America/New_York
 Settings persist per-browser, so a panel survives a reboot without anyone
 retyping a URL.
 
-**Touch** — a mounted panel shows no chrome, so the controls stay hidden until
-asked for:
+**Changing the game** — a menu button sits in the top-right corner of the
+panel at 35% opacity. Tap it for today's games, live ones first with running
+scores; tap a game to pin the panel to it. Two taps, no submenus.
 
-- **Tap** the panel for a control bar (previous / next game, game list,
-  fullscreen). It hides itself again after five seconds.
-- **Press and hold** for about half a second to open the full setup page.
-- The setup page opens on today's games, live ones first with running scores.
-  One tap pins the panel to a game.
+The same sheet carries **Best game**, **Rotate all** and **Demo**, plus
+fullscreen and a link to the full settings page.
+
+For a screen nobody is meant to touch, `?chrome=0` removes the button
+entirely.
 
 **Keyboard**
 
 | Key | Action |
 |---|---|
-| `C` | Open the setup drawer |
+| `M` | Open the game menu |
+| `C` | Open the full setup page |
 | `←` `→` | Step through games (live games first) |
 | `F` | Fullscreen |
 | `D` | Toggle demo mode |
