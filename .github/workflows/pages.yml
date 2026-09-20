@@ -1,0 +1,42 @@
+name: Deploy panel to GitHub Pages
+
+# The panel is a static page that reads ESPN's scoreboard from the viewer's
+# own browser, so Pages is enough — there is nothing to run server-side.
+on:
+  push:
+    branches: [claude/sports-bar-nfl-display-dtfjrn]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; let a newer push win.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out the panel
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true          # turn Pages on if it is not already
+
+      - name: Package the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
