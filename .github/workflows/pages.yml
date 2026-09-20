@@ -2,9 +2,11 @@ name: Deploy panel to GitHub Pages
 
 # The panel is a static page that reads ESPN's scoreboard from the viewer's
 # own browser, so Pages is enough — there is nothing to run server-side.
+# Manual only. Pages is not switched on for this repository yet, and the
+# workflow token is not allowed to switch it on, so running this on every push
+# just mails a failure. Turn Pages on (Settings -> Pages, source "GitHub
+# Actions") and then run this workflow by hand, or restore the push trigger.
 on:
-  push:
-    branches: [claude/sports-bar-nfl-display-dtfjrn]
   workflow_dispatch:
 
 permissions:
