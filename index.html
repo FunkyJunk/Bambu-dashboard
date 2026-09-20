@@ -85,7 +85,7 @@ body.fill #stage{width:100vw;height:100vh;max-width:none;max-height:none;aspect-
 #grid{
   position:relative;z-index:2;height:100%;
   display:grid;
-  grid-template-rows:1fr 26cqh;
+  grid-template-rows:1fr auto 26cqh;
   grid-template-columns:1fr;
 }
 
@@ -284,6 +284,36 @@ body.fill #stage{width:100vw;height:100vh;max-width:none;max-height:none;aspect-
   font-family:var(--cond);font-weight:600;font-size:7.5cqh;line-height:1;
   color:var(--ink-dim);min-width:9cqh;text-align:right;
 }
+
+/* ---------- up next ----------
+   A thin band under the game. It collapses to nothing when the channel has
+   nothing left today, so the scoreboard gets its full height back rather than
+   reserving room for an empty row. */
+#upnext{
+  display:none;align-items:center;gap:1.8cqh;
+  padding:0 4cqh;height:15cqh;
+  border-top:.22cqh solid var(--line);
+  background:linear-gradient(90deg,rgba(255,255,255,.045),rgba(255,255,255,.015));
+  overflow:hidden;
+}
+#stage.hasnext #upnext{display:flex}
+#upnext .lb{
+  font-family:var(--cond);font-weight:700;font-size:7cqh;line-height:1;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--amber);
+  white-space:nowrap;flex:0 0 auto;
+}
+/* One line, one measurement. The children are sized in em off this wrapper so
+   a single shrink-to-fit pass scales the whole line and keeps its hierarchy —
+   the panel's cqh units are container-relative and would ignore a parent's
+   font-size entirely. */
+#nxLine{
+  flex:1 1 auto;min-width:0;overflow:hidden;
+  display:flex;align-items:baseline;gap:2.4cqh;white-space:nowrap;
+  font-family:var(--cond);font-size:9.5cqh;line-height:1;
+}
+#nxLine .when{font-weight:700;font-size:1em;font-variant-numeric:tabular-nums;flex:0 0 auto}
+#nxLine .who {font-weight:700;font-size:1em;flex:0 0 auto}
+#nxLine .tail{font-weight:600;font-size:.82em;color:var(--ink-dim);flex:0 0 auto;margin-left:auto}
 
 /* ---------- bottom rail ---------- */
 #rail{
@@ -650,6 +680,15 @@ body.no-chrome #burger{display:none}
       <div id="board"></div>
     </div>
 
+    <div id="upnext">
+      <span class="lb">Up next</span>
+      <div id="nxLine">
+        <span class="when" id="nxWhen"></span>
+        <span class="who" id="nxWho"></span>
+        <span class="tail" id="nxTail"></span>
+      </div>
+    </div>
+
     <div id="rail">
       <div id="badge">
         <span class="net" id="netTxt">NFL</span>
@@ -857,6 +896,7 @@ const cfg = {
   // ?chrome=0 removes the menu button for a panel nobody is meant to touch
   chrome: qs.get('chrome') !== '0',
   ads:    qs.get('ads') !== '0' && store.get('ads', true),
+  next:   qs.get('next') !== '0',
   sport:  (qs.get('sport') || store.get('sport', 'nfl')).toLowerCase()
 };
 if (qs.get('demo') === '1') cfg.mode = 'demo';
@@ -1158,6 +1198,71 @@ function readable(t){
 }
 
 /* ==========================================================================
+   What this television shows next
+
+   A TV is tuned to a channel, so "next" means the next thing that channel is
+   carrying — not simply the next kickoff in the league. Panels following a
+   network use that network; a pinned game uses its own broadcaster. Only when
+   the channel has nothing else today does this fall back to the next event in
+   the slate, and it says so.
+   ========================================================================== */
+function nextUp(g){
+  if (!cfg.next || !g || !games.length) return null;
+  const now = Date.now();
+  const upcoming = games
+    .filter(x => x.id !== g.id && x.state === 'pre' && x.kickoff.getTime() > now - 120000)
+    .sort((a, b) => a.kickoff - b.kickoff);
+  if (!upcoming.length) return null;
+
+  const wanted = (cfg.mode === 'network' && cfg.net)
+      ? [cfg.net]
+      : (g.nets && g.nets.length ? g.nets : (g.net ? [g.net] : []));
+
+  const onChannel = upcoming.find(x =>
+    (x.nets || []).some(n => wanted.some(w => n.toLowerCase() === w.toLowerCase())));
+
+  return onChannel
+      ? { game: onChannel, sameChannel: true }
+      : { game: upcoming[0], sameChannel: false };
+}
+
+// "Walmart NW Arkansas Championship pres. by P&G" is a title sponsor with an
+// event attached; scoreboards drop the suffix and so does this line.
+function trimSponsor(name){
+  return name.replace(/\s+(pres(ented)?\.?\s+by|presented by)\s+.*$/i, '').trim();
+}
+
+function untilText(d){
+  const ms = d.getTime() - Date.now();
+  if (ms <= 0) return 'about to start';
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `in ${m} min`;
+  const h = Math.floor(m / 60);
+  return `in ${h}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+function paintNext(g){
+  const nx = nextUp(g);
+  stage.classList.toggle('hasnext', !!nx);
+  if (!nx) return;
+  const n = nx.game;
+
+  const sameDay = dayKey(n.kickoff) === dayKey(new Date());
+  $('nxWhen').textContent = n.kind === 'board'
+      ? (sameDay ? 'Today' : kickDay(n.kickoff))          // a tournament is a day, not a tee time
+      : (sameDay ? '' : kickDay(n.kickoff) + ' ') + clockOnly(n.kickoff);
+  $('nxWho').textContent  = n.kind === 'board'
+      ? trimSponsor(n.short || n.name || '')
+      : `${n.away.abbr} ${n.sport === 'soccer' ? 'v' : '@'} ${n.home.abbr}`;
+  $('nxTail').textContent = [
+    nx.sameChannel ? n.net : 'on ' + n.net,
+    sameDay ? untilText(n.kickoff) : ''
+  ].filter(Boolean).join(' · ');
+
+  fitOne($('nxLine'), .98, true);
+}
+
+/* ==========================================================================
    Rendering
    ========================================================================== */
 function fmtCountdown(ms){
@@ -1236,6 +1341,7 @@ function renderBoard(g){
   $('wkTxt').textContent  = (cfg.panel ? 'TV ' + cfg.panel : SPORTS[cfg.sport].label.toUpperCase());
 
   fitOne($('gTour')); fitOne($('gRound'), .96); fitOne($('gWhere'), .96);
+  paintNext(g);
   buildTicker(g);
   adGame = g;
 }
@@ -1310,6 +1416,7 @@ function renderH2H(g){
                             (g.week ? 'WK ' + g.week : (g.comp || '').toUpperCase());
 
   detectScore(g);
+  paintNext(g);
   buildTicker(g);
   fitAll();
   adGame = g;
@@ -1338,7 +1445,7 @@ function fitOne(el, slack, self){
 let fitSig = '';
 function fitAll(force){
   const sig = [$('aAbbr'), $('hAbbr'), $('clock'), $('cd'), $('dd'),
-               $('stateTxt'), $('aScore'), $('hScore')]
+               $('stateTxt'), $('aScore'), $('hScore'), $('nxWho'), $('nxTail')]
               .map(el => el.textContent).join('|') + '|' + innerWidth + 'x' + innerHeight;
   if (!force && sig === fitSig) return;
   fitSig = sig;

@@ -44,6 +44,17 @@ ESPN scoreboard path works — `soccer/eng.2`, `soccer/fra.1`, and so on.
 | **In progress** | Score, quarter, game clock, down & distance, ball spot, possession arrow, timeouts remaining, and a red-zone alert |
 | **Final** | Final score, overtime flag, venue |
 
+Under the game sits an **Up next** band: what this television shows after the
+current game finishes.
+
+A TV is tuned to a channel, not to a game, so "next" means the next thing that
+channel is carrying — the next FOX game for a panel following FOX, the next
+game on the current broadcaster for a pinned panel. Only when that channel has
+nothing else today does it fall back to the next event in the slate, and then
+it labels it (`on CBS`) so nobody walks to the wrong screen. The band collapses
+entirely when there is nothing left, giving the scoreboard its full height
+back. `?next=0` turns it off.
+
 The bottom rail always crawls: last play, live win probability, venue, weather,
 and every other score around the league.
 
@@ -100,6 +111,7 @@ Each panel is configured entirely by URL, so six kiosk windows need no shared st
 | `net` | `?net=FOX` | Broadcaster to follow (implies `mode=network`) |
 | `game` | `?game=401872937` | ESPN event id (implies `mode=game`) |
 | `panel` | `?panel=3` | Labels the rail badge `TV 3` |
+| `next` | `?next=0` | Hide the Up next band |
 | `chrome` | `?chrome=0` | Hide the menu button — for a mounted panel |
 | `tz` | `?tz=America/New_York` | Force the display timezone. Worth setting — a signage stick with a wrong system clock will otherwise print kickoffs in the wrong hour |
 | `ar` | `?ar=32/9` | Panel aspect ratio (default `14/6`) |
