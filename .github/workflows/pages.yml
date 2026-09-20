@@ -25,12 +25,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Check out the panel
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
+      # Pages must already be switched on for this repository, with its source
+      # set to "GitHub Actions" (Settings -> Pages). The workflow token is not
+      # allowed to create the Pages site itself — that attempt fails with
+      # "Resource not accessible by integration".
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true          # turn Pages on if it is not already
 
       - name: Package the site
         uses: actions/upload-pages-artifact@v3
