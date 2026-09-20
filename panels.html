@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NFL Rail — Six-TV Wall Preview</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#05070a;color:#e8edf5;min-height:100vh;
+    font-family:'Barlow',ui-sans-serif,system-ui,'Segoe UI',sans-serif;
+    padding:clamp(14px,2.5vw,32px)}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:6px}
+  h1{font-size:clamp(19px,2.4vw,28px);font-weight:700;letter-spacing:.02em}
+  p.sub{color:#8d97a8;font-size:14px;line-height:1.6;max-width:70ch;margin-bottom:22px}
+  .wall{display:grid;gap:clamp(12px,2vw,22px);
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))}
+  .tv{background:#0b0e14;border:1px solid rgba(255,255,255,.09);border-radius:12px;
+    overflow:hidden}
+  .tv .cap{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.08);
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#8d97a8}
+  .tv .cap b{color:#e8edf5;letter-spacing:.06em}
+  .tv iframe{display:block;width:100%;aspect-ratio:14/6;border:0;background:#07090d}
+  a{color:#6fb4ff}
+  footer{margin-top:26px;color:#5b6577;font-size:13px;line-height:1.7}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
+    background:#151a23;padding:2px 6px;border-radius:4px;color:#ffb020}
+</style>
+</head>
+<body>
+<header><h1>Six-TV wall preview</h1></header>
+<p class="sub">Each tile is the same <code>index.html</code> running as an independent panel,
+pinned to the network its television is tuned to. In the bar these are six separate
+kiosk browsers, one per strip — this page only exists so you can see them together
+before anything gets mounted.</p>
+
+<div class="wall" id="wall"></div>
+
+<footer>
+  Press <b>C</b> inside any tile for its setup drawer.
+  Add <code>?feed=/feed</code> to every URL when running behind <code>cache-proxy.mjs</code>.
+</footer>
+
+<script>
+  // Mirrors a plausible Sunday-afternoon channel assignment for a six-screen bar.
+  const TVS = [
+    {n:1, net:'FOX',         note:'Main bar'},
+    {n:2, net:'CBS',         note:'Main bar'},
+    {n:3, net:'NBC',         note:'Back room'},
+    {n:4, net:'ESPN',        note:'Patio'},
+    {n:5, net:'Prime Video', note:'Booths'},
+    {n:6, net:'',            note:'Rotates — best game', mode:'auto'}
+  ];
+  const q = new URLSearchParams(location.search);
+  const feed = q.get('feed') || '';          // pass through to the child panels
+  const tz   = q.get('tz')   || '';
+
+  document.getElementById('wall').innerHTML = TVS.map(tv => {
+    const p = new URLSearchParams();
+    p.set('panel', tv.n);
+    if (tv.mode) p.set('mode', tv.mode); else { p.set('mode','network'); p.set('net', tv.net); }
+    if (feed) p.set('feed', feed);
+    if (tz)   p.set('tz', tz);
+    const label = tv.net || 'AUTO';
+    return `<div class="tv">
+      <div class="cap"><span><b>TV ${tv.n}</b> · ${label}</span><span>${tv.note}</span></div>
+      <iframe src="index.html?${p}" title="TV ${tv.n} — ${label}" loading="lazy"></iframe>
+    </div>`;
+  }).join('');
+</script>
+</body>
+</html>

@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>NFL Rail — Under-TV Game Strip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   NFL RAIL — ultra-wide under-TV strip (default 14w x 6h)
+   All type is sized in cqh (container-query height units) so the
+   layout is resolution-independent: it renders identically on a
+   1920x823 stretch bar panel and on a laptop preview.
+   ============================================================ */
+
+:root{
+  --bg:#07090d;
+  --panel:#0e1219;
+  --line:rgba(255,255,255,.10);
+  --ink:#f2f5f9;
+  --ink-dim:#8d97a8;
+  --ink-mute:#5b6577;
+  --live:#3ddc84;
+  --red:#ff3b30;
+  --amber:#ffb020;
+  --away:#888;
+  --home:#888;
+  /* The webfont is a nicety, not a dependency: a bar network that blocks
+     fonts.googleapis.com must still get a condensed face, and fitText()
+     below guarantees nothing overflows even if it falls all the way back. */
+  --cond:'Barlow Condensed','Archivo Narrow','Roboto Condensed','Oswald',
+         'Liberation Sans Narrow','DejaVu Sans Condensed','Arial Narrow',
+         ui-sans-serif,system-ui,'Segoe UI',sans-serif;
+  font-stretch:condensed;
+  --body:'Barlow',ui-sans-serif,system-ui,'Segoe UI',sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#000;overflow:hidden}
+body{
+  font-family:var(--body);
+  color:var(--ink);
+  display:grid;place-items:center;
+  -webkit-font-smoothing:antialiased;
+  cursor:none;
+}
+body.ui-on{cursor:default}
+
+/* ---------- stage: locks the physical aspect ratio ---------- */
+#stage{
+  position:relative;
+  aspect-ratio:var(--ar,14/6);
+  width:100vw; height:auto;
+  max-height:100vh; max-width:calc(100vh * var(--arnum,2.3333));
+  container-type:size;
+  background:var(--bg);
+  overflow:hidden;
+  isolation:isolate;
+}
+body.fill #stage{width:100vw;height:100vh;max-width:none;max-height:none;aspect-ratio:auto}
+
+/* team-colour wash behind each half */
+#stage::before,#stage::after{
+  content:'';position:absolute;top:0;bottom:0;width:30%;z-index:0;
+  transition:background 600ms ease;pointer-events:none;
+}
+#stage::before{left:0;background:linear-gradient(90deg,
+  color-mix(in srgb,var(--away) 32%,transparent),transparent)}
+#stage::after{right:0;background:linear-gradient(270deg,
+  color-mix(in srgb,var(--home) 32%,transparent),transparent)}
+
+/* red-zone edge glow */
+#rz{
+  position:absolute;inset:0;z-index:6;pointer-events:none;opacity:0;
+  background:linear-gradient(180deg,var(--red) 0 1.1cqh,transparent 1.1cqh),
+             linear-gradient(0deg,var(--red) 0 1.1cqh,transparent 1.1cqh);
+  transition:opacity 400ms ease;
+}
+#stage.redzone #rz{opacity:1;animation:rzpulse 1.8s ease-in-out infinite}
+@keyframes rzpulse{0%,100%{opacity:.35}50%{opacity:1}}
+
+/* ---------- main grid ---------- */
+#grid{
+  position:relative;z-index:2;height:100%;
+  display:grid;
+  grid-template-rows:1fr 26cqh;
+  grid-template-columns:1fr;
+}
+
+#main{
+  display:grid;
+  grid-template-columns:1fr 1.05fr 1fr;
+  align-items:center;
+  padding:0 4.5cqh;
+  min-height:0;
+}
+
+/* ---------- team blocks ----------
+   The hard constraint on a 14x6 panel is horizontal: three zones must share
+   fourteen inches. The id column is the only flexible one, so it carries
+   flex:1 + min-width:0 and the score is never allowed to shrink. */
+/* Grid, not flex: each zone gets a guaranteed share of the column so the
+   score can never starve the team name (or the other way round). */
+.team{position:relative;display:grid;align-items:center;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1.12fr);
+  column-gap:1.4cqh;min-width:0;isolation:isolate}
+
+
+/* The team mark sits behind the half as a watermark rather than in the row.
+   On a 14-inch-wide panel a crisp inline logo costs ~1.5in of the 4.6in each
+   team gets, which is what squeezed the abbreviation out of the layout. */
+.wm{
+  position:absolute;top:50%;height:62cqh;width:62cqh;
+  transform:translateY(-50%);object-fit:contain;
+  opacity:.22;z-index:-1;pointer-events:none;
+}
+/* fade the mark out toward the middle so it never sits under the score */
+.team.away .wm{left:-6cqh;
+  -webkit-mask-image:linear-gradient(90deg,#000 45%,transparent 100%);
+          mask-image:linear-gradient(90deg,#000 45%,transparent 100%)}
+.team.home .wm{right:-6cqh;
+  -webkit-mask-image:linear-gradient(270deg,#000 45%,transparent 100%);
+          mask-image:linear-gradient(270deg,#000 45%,transparent 100%)}
+
+.idblock{min-width:0;display:flex;flex-direction:column;gap:.9cqh;align-items:flex-start}
+.team.home .idblock{align-items:flex-end;text-align:right}
+.team.home{grid-template-columns:minmax(0,1.12fr) auto minmax(0,1fr)}
+.abbr,.metaline{max-width:100%}
+
+.abbr{
+  font-family:var(--cond);font-weight:700;
+  font-size:17cqh;line-height:.82;letter-spacing:.005em;
+  text-shadow:0 .3cqh 1cqh rgba(0,0,0,.8);
+  white-space:nowrap;
+  /* team colour reads as a rule under the name — sized to the text, so it
+     can neither collide with glyphs nor trail off across the column */
+  border-bottom:1.4cqh solid var(--tc,#666);
+  padding-bottom:.7cqh;
+  filter:drop-shadow(0 0 1.4cqh color-mix(in srgb,var(--tc,#666) 55%,transparent));
+}
+.metaline{
+  display:flex;align-items:center;gap:1.3cqh;
+  font-family:var(--cond);font-weight:600;
+  font-size:8cqh;line-height:1;color:var(--ink-dim);
+  white-space:nowrap;
+}
+.team.home .metaline{flex-direction:row-reverse}
+
+.score{
+  font-family:var(--cond);font-weight:700;
+  font-size:40cqh;line-height:.78;
+  font-variant-numeric:tabular-nums;
+  min-width:0;text-align:center;
+  text-shadow:0 .5cqh 1.2cqh rgba(0,0,0,.7);
+  transition:color 250ms ease;
+}
+.score.bump{animation:bump 900ms cubic-bezier(.2,1.5,.4,1)}
+@keyframes bump{
+  0%{transform:scale(1)}
+  22%{transform:scale(1.28);color:#fff}
+  100%{transform:scale(1)}
+}
+
+/* possession pip */
+.poss{
+  width:0;height:0;opacity:0;justify-self:center;
+  border-top:1.6cqh solid transparent;
+  border-bottom:1.6cqh solid transparent;
+  border-left:2.1cqh solid var(--amber);
+  transition:opacity 250ms ease;
+}
+.team.home .poss{border-left:0;border-right:2.1cqh solid var(--amber)}
+.team.has-ball .poss{opacity:1;animation:pip 1.8s ease-in-out infinite}
+/* Before kickoff there is no score and no possession, so the team block
+   collapses to a single track. Without this the hidden grid items leave the
+   name stranded in a one-third-width column and it spills into the centre. */
+#stage.pre .score,
+#stage.pre .poss{display:none}
+#stage.pre .team,
+#stage.pre .team.home{grid-template-columns:minmax(0,1fr)}
+#stage.pre .abbr{font-size:24cqh}
+#stage.pre .metaline{font-size:10cqh}
+@keyframes pip{0%,100%{transform:translateX(0)}50%{transform:translateX(.6cqh)}}
+.team.home.has-ball .poss{animation-name:pipL}
+@keyframes pipL{0%,100%{transform:translateX(0)}50%{transform:translateX(-.6cqh)}}
+
+/* timeout dots */
+.tos{display:flex;gap:.6cqh;align-items:center}
+.tos i{width:1.7cqh;height:1.7cqh;border-radius:50%;background:var(--ink);opacity:.85}
+.tos i.spent{background:transparent;box-shadow:inset 0 0 0 .3cqh var(--ink-mute)}
+
+/* ---------- centre column ---------- */
+#centre{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.9cqh;min-width:0;padding:0 1cqh;
+}
+
+#statepill{
+  display:flex;align-items:center;gap:1.1cqh;
+  font-family:var(--cond);font-weight:700;font-size:7.5cqh;line-height:1;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);
+  white-space:nowrap;max-width:100%;
+}
+#statepill .dot{
+  width:1.6cqh;height:1.6cqh;border-radius:50%;background:var(--ink-mute);
+}
+#stage.live #statepill{color:var(--live)}
+#stage.live #statepill .dot{background:var(--live);animation:blink 2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+#stage.final #statepill{color:var(--ink-dim)}
+
+#clock{
+  font-family:var(--cond);font-weight:700;
+  font-size:30cqh;line-height:.85;
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+#clock.small{font-size:20cqh}
+
+#dd{
+  font-family:var(--cond);font-weight:600;
+  font-size:9cqh;line-height:1;white-space:nowrap;
+  padding:.9cqh 2cqh;border-radius:99cqh;
+  background:rgba(255,255,255,.07);
+  border:.2cqh solid var(--line);
+  color:var(--ink);
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  transition:background 300ms ease,border-color 300ms ease;
+}
+#stage.redzone #dd{
+  background:var(--red);border-color:#ff7a72;color:#fff;
+  box-shadow:0 0 3cqh rgba(255,59,48,.6);
+}
+#dd:empty{display:none}
+
+/* ---------- bottom rail ---------- */
+#rail{
+  position:relative;
+  border-top:.25cqh solid var(--line);
+  background:linear-gradient(180deg,#0b0e14,#05070a);
+  display:flex;align-items:stretch;overflow:hidden;
+}
+
+#badge{
+  flex:0 0 auto;display:flex;align-items:center;gap:1.2cqh;
+  padding:0 2.2cqh;background:rgba(255,255,255,.05);
+  border-right:.25cqh solid var(--line);
+  font-family:var(--cond);font-weight:700;font-size:10cqh;line-height:1;
+  letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;
+}
+#badge .net{color:var(--ink)}
+#badge .tag{
+  font-size:6.5cqh;letter-spacing:.16em;color:var(--ink-mute);
+  padding:.5cqh .9cqh;border:.2cqh solid var(--line);border-radius:.6cqh;
+}
+
+#tickwrap{flex:1 1 auto;position:relative;overflow:hidden;min-width:0}
+#tick{
+  position:absolute;top:50%;left:0;transform:translateY(-50%);
+  display:flex;align-items:center;gap:0;white-space:nowrap;
+  font-family:var(--cond);font-weight:600;font-size:11cqh;line-height:1;
+  will-change:transform;
+}
+#tick .seg{padding:0 1.6cqh;color:var(--ink)}
+#tick .sep{color:var(--ink-mute);padding:0 .4cqh}
+#tick .k{color:var(--amber);font-weight:700}
+#tick .dim{color:var(--ink-dim)}
+#tick .win{color:var(--live);font-weight:700}
+/* fade the rail edges so text doesn't hard-clip */
+#tickwrap::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,#06080c 0,transparent 3%,transparent 97%,#06080c 100%);
+}
+
+/* ---------- big score banner ----------
+   Covers the main row only: the rail underneath keeps crawling, so the play
+   description stays on screen while the banner shouts the headline. */
+#banner{
+  position:absolute;left:0;right:0;top:0;bottom:26cqh;z-index:8;display:none;
+  align-items:center;gap:3cqh;padding:0 4.5cqh;overflow:hidden;
+  background:linear-gradient(90deg,
+     color-mix(in srgb,var(--evt,#3ddc84) 85%,#000),
+     color-mix(in srgb,var(--evt,#3ddc84) 30%,#05070a) 70%, #05070a);
+}
+#banner.on{display:flex;animation:bslide 420ms cubic-bezier(.2,.9,.25,1)}
+@keyframes bslide{from{opacity:0;transform:translateY(14%)}to{opacity:1;transform:none}}
+#banner img{height:50cqh;width:50cqh;object-fit:contain;flex:0 0 auto;
+  filter:drop-shadow(0 .5cqh 1.2cqh rgba(0,0,0,.55))}
+#banner .col{min-width:0;flex:1 1 auto;display:flex;flex-direction:column;gap:.6cqh}
+#banner .bteam{
+  font-family:var(--cond);font-weight:600;font-size:11cqh;line-height:1;
+  letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.82);
+  white-space:nowrap;
+}
+#banner .btxt{
+  font-family:var(--cond);font-weight:700;font-size:38cqh;line-height:.85;
+  letter-spacing:.01em;text-transform:uppercase;white-space:nowrap;
+  text-shadow:0 .6cqh 1.6cqh rgba(0,0,0,.5);
+}
+
+/* ---------- pre-game countdown ---------- */
+#cd{
+  font-family:var(--cond);font-weight:700;font-size:11cqh;line-height:1;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;color:var(--amber);letter-spacing:.06em;
+}
+#cd:empty{display:none}
+
+/* ---------- status / error chip ---------- */
+#chip{
+  position:absolute;right:1cqh;top:1cqh;z-index:9;
+  font-family:var(--cond);font-size:5.5cqh;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-mute);
+  padding:.5cqh 1cqh;border-radius:.6cqh;background:rgba(0,0,0,.45);
+  opacity:0;transition:opacity 300ms ease;pointer-events:none;
+}
+#chip.show{opacity:1}
+#chip.bad{color:#ff8a80}
+
+/* ---------- config drawer ---------- */
+#cfg{
+  position:fixed;inset:0;z-index:50;display:none;
+  background:rgba(2,4,8,.88);backdrop-filter:blur(8px);
+  padding:clamp(16px,3vw,40px);overflow:auto;
+}
+#cfg.on{display:block}
+#cfg .wrap{max-width:900px;margin:0 auto;font-family:var(--body)}
+#cfg h1{font-family:var(--cond);font-size:clamp(22px,3vw,34px);letter-spacing:.04em;
+  text-transform:uppercase;margin-bottom:4px}
+#cfg p.lead{color:var(--ink-dim);font-size:14px;margin-bottom:22px;line-height:1.5}
+#cfg fieldset{border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+#cfg legend{font-family:var(--cond);letter-spacing:.14em;text-transform:uppercase;
+  font-size:12px;color:var(--ink-dim);padding:0 8px}
+#cfg .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#cfg label.lb{font-size:12px;color:var(--ink-dim);width:100%;margin-bottom:6px;
+  letter-spacing:.1em;text-transform:uppercase}
+#cfg button,#cfg select{
+  font:inherit;font-size:14px;color:var(--ink);background:#151a23;
+  border:1px solid var(--line);border-radius:8px;padding:9px 14px;cursor:pointer;
+}
+#cfg button:hover,#cfg select:hover{background:#1d2431;border-color:#3a4456}
+#cfg button.sel{background:var(--ink);color:#0a0d12;border-color:var(--ink);font-weight:700}
+#cfg select{min-width:220px}
+#cfg .kbd{display:inline-block;font-family:ui-monospace,monospace;font-size:12px;
+  background:#151a23;border:1px solid var(--line);border-bottom-width:2px;
+  border-radius:5px;padding:2px 7px;margin-right:6px}
+#cfg .hint{font-size:13px;color:var(--ink-dim);line-height:1.7;margin-top:10px}
+#cfg code{font-family:ui-monospace,monospace;background:#151a23;padding:2px 6px;
+  border-radius:4px;font-size:12px;color:var(--amber)}
+#cfg .close{position:absolute;top:18px;right:20px}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="rz"></div>
+
+  <div id="grid">
+    <div id="main">
+
+      <div class="team away" id="tAway">
+        <img class="wm" id="aLogo" alt="" decoding="async">
+        <div class="idblock">
+          <div class="abbr" id="aAbbr">—</div>
+          <div class="metaline">
+            <span id="aRec"></span>
+            <span class="tos" id="aTO"></span>
+          </div>
+        </div>
+        <div class="poss"></div>
+        <div class="score" id="aScore">–</div>
+      </div>
+
+      <div id="centre">
+        <div id="statepill"><span class="dot"></span><span id="stateTxt">Loading</span></div>
+        <div id="clock">—</div>
+        <div id="cd"></div>
+        <div id="dd"></div>
+      </div>
+
+      <div class="team home" id="tHome">
+        <img class="wm" id="hLogo" alt="" decoding="async">
+        <div class="score" id="hScore">–</div>
+        <div class="poss"></div>
+        <div class="idblock">
+          <div class="abbr" id="hAbbr">—</div>
+          <div class="metaline">
+            <span id="hRec"></span>
+            <span class="tos" id="hTO"></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="rail">
+      <div id="badge">
+        <span class="net" id="netTxt">NFL</span>
+        <span class="tag" id="wkTxt"></span>
+      </div>
+      <div id="tickwrap"><div id="tick"></div></div>
+    </div>
+  </div>
+
+  <div id="banner">
+    <img id="bLogo" alt="">
+    <div class="col">
+      <div class="bteam" id="bTeam"></div>
+      <div class="btxt" id="bTxt">TOUCHDOWN</div>
+    </div>
+  </div>
+
+  <div id="chip"></div>
+</div>
+
+<div id="cfg"><div class="wrap">
+  <button class="close" id="cfgClose">Close (Esc)</button>
+  <h1>NFL Rail — Panel Setup</h1>
+  <p class="lead">This strip has no way of knowing which game the TV above it is tuned to.
+  Tell it here, or pin it to a broadcast network and it will follow whatever that network is
+  carrying in this window.</p>
+
+  <fieldset><legend>Which game</legend>
+    <label class="lb">Mode</label>
+    <div class="row" id="modeRow">
+      <button data-mode="network">Follow a network</button>
+      <button data-mode="game">Pin one game</button>
+      <button data-mode="auto">Auto — best game</button>
+      <button data-mode="rotate">Rotate all games</button>
+      <button data-mode="demo">Demo (simulated)</button>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <select id="netSel" aria-label="Network"></select>
+      <select id="gameSel" aria-label="Game"></select>
+    </div>
+  </fieldset>
+
+  <fieldset><legend>Panel</legend>
+    <div class="row">
+      <select id="arSel" aria-label="Aspect ratio">
+        <option value="14/6">14 × 6 in  (2.33:1)</option>
+        <option value="32/9">32:9 stretch bar</option>
+        <option value="24/9">24:9</option>
+        <option value="16/9">16:9</option>
+      </select>
+      <button id="fillBtn">Fill screen (ignore ratio)</button>
+      <button id="fsBtn">Fullscreen</button>
+    </div>
+    <div class="hint" id="deployHint"></div>
+  </fieldset>
+
+  <fieldset><legend>Keys</legend>
+    <div class="hint">
+      <span class="kbd">C</span> setup &nbsp;
+      <span class="kbd">←</span><span class="kbd">→</span> change game &nbsp;
+      <span class="kbd">F</span> fullscreen &nbsp;
+      <span class="kbd">D</span> demo &nbsp;
+      <span class="kbd">R</span> refresh now
+    </div>
+  </fieldset>
+</div></div>
+
+<script>
+'use strict';
+/* ==========================================================================
+   NFL RAIL
+   Data: ESPN public scoreboard feed (no key, CORS-open, ~1s cache).
+   Everything needed for the strip — score, clock, down & distance,
+   possession, timeouts, red zone, last play, live win probability —
+   arrives in that single request, so one poll drives the whole display.
+   ========================================================================== */
+
+const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
+// ?feed=... points the panel at a local cache proxy (see cache-proxy.mjs).
+// With six panels on one bar network that is the difference between 24
+// requests a minute leaving the building and 6.
+const FEED = new URLSearchParams(location.search).get('feed') || ESPN;
+const POLL_LIVE = 15000;   // a live game moves; ESPN caches for ~1s
+const POLL_IDLE = 90000;   // nothing in progress — back off
+const ROTATE_MS = 20000;   // rotate/auto dwell time per game
+
+const $ = id => document.getElementById(id);
+const stage = $('stage');
+
+/* ---------- configuration: URL params win, then localStorage ---------- */
+const qs = new URLSearchParams(location.search);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem('nflrail.'+k); return v===null?d:JSON.parse(v);}catch(e){return d;} },
+  set(k, v){ try{ localStorage.setItem('nflrail.'+k, JSON.stringify(v)); }catch(e){} }
+};
+
+const cfg = {
+  mode:  qs.get('mode') || (qs.get('net') ? 'network' : (qs.get('game') ? 'game' : null)) || store.get('mode','auto'),
+  net:   qs.get('net')  || store.get('net','FOX'),
+  game:  qs.get('game') || store.get('game',''),
+  ar:    qs.get('ar')   || store.get('ar','14/6'),
+  fill:  qs.get('fill') === '1' || store.get('fill',false),
+  panel: qs.get('panel') || '',
+  // A signage stick with a wrong system clock zone will print kickoffs in the
+  // wrong hour. ?tz=America/New_York pins it regardless of what the box thinks.
+  tz:    qs.get('tz') || store.get('tz','') || undefined
+};
+if (qs.get('demo') === '1') cfg.mode = 'demo';
+
+function applyAspect(){
+  const [w,h] = cfg.ar.split('/').map(Number);
+  document.documentElement.style.setProperty('--ar', cfg.ar);
+  document.documentElement.style.setProperty('--arnum', (w/h).toFixed(4));
+  document.body.classList.toggle('fill', !!cfg.fill);
+}
+applyAspect();
+
+/* ---------- state ---------- */
+let games = [];          // normalised feed
+let current = null;      // the game on screen
+let rotateIdx = 0;
+let lastRotate = 0;
+let prevScores = {};     // id -> "away-home", to detect scoring
+let bannerUntil = 0;
+let pollTimer = null, failures = 0;
+
+/* ==========================================================================
+   Normalising the feed
+   ========================================================================== */
+/* ESPN is inconsistent here: some games carry downDistanceText ("4th & 7 at
+   MIN 32"), some only the short form, and some just raw down/distance/yardLine.
+   Between plays it reports down: -1, which must not become "-1th & Goal".
+   Normalise to a short phrase plus a separate ball spot, so the strip never
+   prints the yard line twice and never prints a down that does not exist. */
+function downAndDistance(sit, off, def){
+  let down = sit.shortDownDistanceText || '';
+  let spot = sit.possessionText || '';
+
+  if (!down && sit.downDistanceText){
+    const [a, b] = sit.downDistanceText.split(/\s+at\s+/i);
+    down = a || '';
+    if (!spot && b) spot = b;
+  }
+  if (!down && sit.down >= 1 && sit.down <= 4){
+    const d = ['1st','2nd','3rd','4th'][sit.down - 1];
+    down = d + ' & ' + (sit.distance > 0 ? sit.distance : 'Goal');
+  }
+  // yardLine is measured from the possessing team's own goal line, so the spot
+  // is named for whichever half of the field the ball is in.
+  if (!spot && off && def && typeof sit.yardLine === 'number'){
+    spot = sit.yardLine <= 50 ? `${off.abbr} ${sit.yardLine}`
+                              : `${def.abbr} ${100 - sit.yardLine}`;
+  }
+  return {down, spot};
+}
+
+function norm(ev){
+  const c  = ev.competitions[0];
+  const st = c.status;
+  const home = c.competitors.find(t => t.homeAway === 'home') || c.competitors[0];
+  const away = c.competitors.find(t => t.homeAway === 'away') || c.competitors[1];
+  const sit  = c.situation || {};
+  const nets = (c.broadcasts || []).flatMap(b => b.names || []);
+  const lp   = sit.lastPlay || {};
+
+  const team = t => ({
+    id: t.team.id,
+    abbr: t.team.abbreviation,
+    name: t.team.shortDisplayName,
+    logo: t.team.logo,
+    color: '#' + (t.team.color || '666666'),
+    alt:   '#' + (t.team.alternateColor || 'cccccc'),
+    score: parseInt(t.score, 10) || 0,
+    record: (t.records || []).find(r => r.type === 'total')?.summary || ''
+  });
+
+  return {
+    id: ev.id,
+    short: ev.shortName,
+    state: st.type.state,                  // pre | in | post
+    detail: st.type.shortDetail,
+    desc: st.type.description,
+    period: st.period,
+    clock: st.displayClock,
+    kickoff: new Date(ev.date),
+    venue: c.venue?.fullName || '',
+    nets,
+    net: nets[0] || 'NFL',
+    week: ev.week?.number,
+    temp: ev.weather?.temperature,
+    wx: ev.weather?.conditionId || '',
+    precip: ev.weather?.displayValue,
+    home: team(home),
+    away: team(away),
+    possId: sit.possession || null,
+    ...(() => {
+      const off = sit.possession === home.team.id ? team(home)
+                : sit.possession === away.team.id ? team(away) : null;
+      const def = off && off.id === home.team.id ? team(away) : off ? team(home) : null;
+      return downAndDistance(sit, off, def);
+    })(),
+
+    redzone: !!sit.isRedZone && !!sit.possession,
+    hTO: sit.homeTimeouts, aTO: sit.awayTimeouts,
+    lastPlay: (lp.text || '').trim(),
+    // win probability rides along on the last play — no second request needed
+    wpHome: lp.probability ? lp.probability.homeWinPercentage : null,
+    odds: (c.odds || [])[0]?.details || '',
+    ou: (c.odds || [])[0]?.overUnder || null
+  };
+}
+
+/* ==========================================================================
+   Which game does this panel show?
+   ========================================================================== */
+function interest(g){
+  // Ranks live games for "auto" mode: close, late, and scoring beats a blowout.
+  if (g.state !== 'in') return -1;
+  const margin = Math.abs(g.home.score - g.away.score);
+  let s = 100;
+  s -= Math.min(margin, 28) * 2.2;          // close games win
+  s += Math.min(g.period, 4) * 9;           // later is better
+  if (g.period >= 4 && margin <= 8) s += 30; // crunch time
+  if (g.redzone) s += 22;
+  if (g.period > 4) s += 45;                 // overtime trumps everything
+  return s;
+}
+
+function pick(){
+  if (!games.length) return null;
+  const live = games.filter(g => g.state === 'in');
+
+  if (cfg.mode === 'game' && cfg.game){
+    const g = games.find(x => x.id === cfg.game);
+    if (g) return g;
+  }
+
+  if (cfg.mode === 'network'){
+    const on = games.filter(g => g.nets.some(n => n.toUpperCase().includes(cfg.net.toUpperCase())));
+    if (on.length){
+      // prefer live, then the next kickoff, then the most recent final
+      const l = on.filter(g => g.state === 'in');
+      if (l.length) return l.sort((a,b) => interest(b) - interest(a))[0];
+      const p = on.filter(g => g.state === 'pre').sort((a,b) => a.kickoff - b.kickoff);
+      if (p.length) return p[0];
+      return on[on.length - 1];
+    }
+    // network has nothing today — fall through to auto rather than go blank
+  }
+
+  if (cfg.mode === 'rotate'){
+    const pool = live.length ? live : games;
+    if (Date.now() - lastRotate > ROTATE_MS){ rotateIdx++; lastRotate = Date.now(); }
+    return pool[rotateIdx % pool.length];
+  }
+
+  // auto
+  if (live.length){
+    const ranked = live.slice().sort((a,b) => interest(b) - interest(a));
+    // stick with the current game unless something clearly better is on
+    if (current && current.state === 'in'){
+      const still = ranked.find(g => g.id === current.id);
+      if (still && interest(still) >= interest(ranked[0]) - 15) return still;
+      if (Date.now() - lastRotate < ROTATE_MS) return still || ranked[0];
+    }
+    lastRotate = Date.now();
+    return ranked[0];
+  }
+  const next = games.filter(g => g.state === 'pre').sort((a,b) => a.kickoff - b.kickoff)[0];
+  return next || games[games.length - 1];
+}
+
+/* ==========================================================================
+   Colour handling — ESPN ships some very dark primaries (Bears 0b1c3a).
+   Pick whichever of primary/alternate reads against a near-black panel.
+   ========================================================================== */
+function lum(hex){
+  const n = parseInt(hex.slice(1), 16);
+  const [r,g,b] = [(n>>16)&255, (n>>8)&255, n&255].map(v => {
+    v /= 255; return v <= .03928 ? v/12.92 : Math.pow((v+.055)/1.055, 2.4);
+  });
+  return .2126*r + .7152*g + .0722*b;
+}
+function readable(t){
+  const a = lum(t.color), b = lum(t.alt);
+  if (a >= 0.09) return t.color;
+  if (b >= 0.09) return t.alt;
+  return '#9aa4b5';
+}
+
+/* ==========================================================================
+   Rendering
+   ========================================================================== */
+function fmtCountdown(ms){
+  if (ms <= 0) return '';
+  const s = Math.floor(ms/1000);
+  const d = Math.floor(s/86400), h = Math.floor(s%86400/3600),
+        m = Math.floor(s%3600/60), ss = s%60;
+  if (d > 0) return `KICKS IN ${d}d ${h}h`;
+  if (h > 0) return `KICKS IN ${h}h ${String(m).padStart(2,'0')}m`;
+  return `KICKS IN ${m}:${String(ss).padStart(2,'0')}`;
+}
+
+const TZ = cfg.tz ? {timeZone: cfg.tz} : {};
+function clockOnly(d){
+  return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit', ...TZ});
+}
+function zoneAbbr(d){
+  return d.toLocaleTimeString([], {timeZoneName:'short', ...TZ}).split(' ').pop() || '';
+}
+// Compare calendar days in the display timezone, not the machine's.
+function dayKey(d){
+  return d.toLocaleDateString('en-CA', {year:'numeric', month:'2-digit', day:'2-digit', ...TZ});
+}
+function kickDay(d){
+  const a = dayKey(new Date()), b = dayKey(d);
+  if (a === b) return 'TODAY';
+  const tmr = new Date(Date.now() + 86400000);
+  if (dayKey(tmr) === b) return 'TOMORROW';
+  return d.toLocaleDateString([], {weekday:'short', ...TZ}).toUpperCase();
+}
+
+function dots(el, n){
+  const k = (typeof n === 'number') ? n : 3;
+  el.innerHTML = '';
+  for (let i = 0; i < 3; i++){
+    const d = document.createElement('i');
+    if (i >= k) d.className = 'spent';
+    el.appendChild(d);
+  }
+}
+
+function render(g){
+  if (!g) return;
+  const live = g.state === 'in', post = g.state === 'post', pre = g.state === 'pre';
+
+  stage.classList.toggle('pre', pre);
+  stage.classList.toggle('live', live);
+  stage.classList.toggle('final', post);
+  stage.classList.toggle('redzone', live && g.redzone);
+
+  // team colour washes + accent rules
+  const ac = readable(g.away), hc = readable(g.home);
+  stage.style.setProperty('--away', ac);
+  stage.style.setProperty('--home', hc);
+  $('aAbbr').style.setProperty('--tc', ac);
+  $('hAbbr').style.setProperty('--tc', hc);
+
+  for (const [side, t] of [['a', g.away], ['h', g.home]]){
+    const lg = $(side + 'Logo');
+    if (lg.dataset.src !== t.logo){ lg.dataset.src = t.logo; lg.src = t.logo; }
+    $(side + 'Abbr').textContent = t.abbr;
+    $(side + 'Rec').textContent  = t.record;
+    $(side + 'Score').textContent = pre ? '–' : t.score;
+  }
+
+  // possession + timeouts only mean something while the ball is in play
+  $('tAway').classList.toggle('has-ball', live && g.possId === g.away.id);
+  $('tHome').classList.toggle('has-ball', live && g.possId === g.home.id);
+  if (live){ dots($('aTO'), g.aTO); dots($('hTO'), g.hTO); }
+  else { $('aTO').innerHTML = ''; $('hTO').innerHTML = ''; }
+
+  // centre column
+  const clk = $('clock'), dd = $('dd'), cd = $('cd');
+  if (live){
+    $('stateTxt').textContent = 'Live · ' + ordinal(g.period);
+    clk.textContent = g.clock || '--:--';
+    clk.classList.remove('small');
+    dd.textContent = [g.down, g.spot].filter(Boolean).join(' · ') ||
+                     (g.redzone ? 'RED ZONE' : '');
+    cd.textContent = '';
+  } else if (pre){
+    const z = zoneAbbr(g.kickoff);
+    $('stateTxt').textContent = kickDay(g.kickoff) + (z ? ' · ' + z : '');
+    clk.textContent = clockOnly(g.kickoff);      // zone lives in the pill above
+    clk.classList.add('small');
+    cd.textContent = fmtCountdown(g.kickoff - Date.now());
+    dd.textContent = [g.odds, g.ou ? 'O/U ' + g.ou : ''].filter(Boolean).join(' · ');
+  } else {
+    // the big word already says FINAL; the pill carries the context instead
+    $('stateTxt').textContent =
+      [kickDay(g.kickoff), g.week ? 'Week ' + g.week : ''].filter(Boolean).join(' · ');
+    clk.textContent = g.period > 4 ? 'FINAL/OT' : 'FINAL';
+    clk.classList.add('small');
+    cd.textContent = '';
+    dd.textContent = g.venue;
+  }
+
+  $('netTxt').textContent = g.net;
+  $('wkTxt').textContent  = (cfg.panel ? 'TV ' + cfg.panel + ' · ' : '') +
+                            (g.week ? 'WK ' + g.week : '');
+
+  detectScore(g);
+  buildTicker(g);
+  fitAll();
+}
+
+/* Signage gets one shot at being legible: it has no scrollbars and nobody is
+   going to resize the window. Rather than trust every element to fit at every
+   font fallback, measure the ones that can run long and scale them down. */
+/* `self` picks which box bounds the text. A grid item is already clamped to
+   its track, so it measures against itself; a shrink-to-fit flex child sizes
+   to its own content and must be measured against the parent instead. */
+function fitOne(el, slack, self){
+  if (!el || !el.textContent) return;
+  el.style.fontSize = '';                      // back to the stylesheet value
+  const box   = self ? el.clientWidth : (el.parentElement?.clientWidth || 0);
+  const avail = box * (slack || 0.98);
+  const want  = el.scrollWidth;
+  if (avail > 0 && want > avail){
+    const base = parseFloat(getComputedStyle(el).fontSize);
+    el.style.fontSize = Math.max(6, base * (avail / want)) + 'px';
+  }
+}
+// render() runs at 1 Hz to keep the countdown honest, but re-measuring text
+// every second is a forced reflow a Raspberry Pi does not need. Only refit
+// when the words actually changed (or the panel was resized).
+let fitSig = '';
+function fitAll(force){
+  const sig = [$('aAbbr'), $('hAbbr'), $('clock'), $('cd'), $('dd'),
+               $('stateTxt'), $('aScore'), $('hScore')]
+              .map(el => el.textContent).join('|') + '|' + innerWidth + 'x' + innerHeight;
+  if (!force && sig === fitSig) return;
+  fitSig = sig;
+  fitOne($('aAbbr'));   fitOne($('hAbbr'));
+  fitOne($('clock'));   fitOne($('cd'));   fitOne($('dd'), 0.94);
+  fitOne($('statepill'), 0.96);
+  fitOne($('aScore'), 0.97, true);  fitOne($('hScore'), 0.97, true);
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitAll(true));
+
+function ordinal(p){
+  if (!p) return '';
+  if (p > 4) return p === 5 ? 'OT' : (p - 4) + 'OT';
+  return ['1st','2nd','3rd','4th'][p - 1] || '';
+}
+
+/* ---------- scoring banner ---------- */
+function detectScore(g){
+  const key = g.away.score + '-' + g.home.score;
+  const prev = prevScores[g.id];
+  prevScores[g.id] = key;
+  if (prev === undefined || prev === key || g.state !== 'in') return;
+
+  const [pa, ph] = prev.split('-').map(Number);
+  const da = g.away.score - pa, dh = g.home.score - ph;
+  const d  = Math.max(da, dh);
+  if (d <= 0) return;
+
+  const t = da > dh ? g.away : g.home;
+  const label = d >= 6 ? 'TOUCHDOWN' : d === 3 ? 'FIELD GOAL'
+              : d === 2 ? 'SAFETY' : d === 1 ? 'EXTRA POINT' : 'SCORE';
+
+  $('aScore').classList.remove('bump'); $('hScore').classList.remove('bump');
+  void $('aScore').offsetWidth;
+  (da > dh ? $('aScore') : $('hScore')).classList.add('bump');
+
+  showBanner(label, t);
+}
+
+function showBanner(label, team){
+  const b = $('banner');
+  b.style.setProperty('--evt', readable(team));
+  $('bTeam').textContent = team.name || team.abbr;
+  $('bTxt').textContent  = label;
+  $('bLogo').src = team.logo;
+  b.classList.add('on');
+  fitOne($('bTxt'));  fitOne($('bTeam'));  fitSig = '';
+  bannerUntil = Date.now() + 7000;
+  setTimeout(() => { if (Date.now() >= bannerUntil) b.classList.remove('on'); }, 7100);
+}
+
+/* ==========================================================================
+   Ticker — the rail is where everything that doesn't fit upstairs lives.
+   ========================================================================== */
+let tickAnim = null;
+function buildTicker(g){
+  const segs = [];
+  const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+  if (g.state === 'in' && g.lastPlay)
+    segs.push(`<span class="k">LAST PLAY</span> ${esc(g.lastPlay)}`);
+
+  if (g.state === 'in' && g.wpHome != null){
+    const hp = Math.round(g.wpHome * 100);
+    const fav = hp >= 50 ? g.home : g.away;
+    const pct = hp >= 50 ? hp : 100 - hp;
+    segs.push(`<span class="dim">WIN PROB</span> <span class="win">${esc(fav.abbr)} ${pct}%</span>`);
+  }
+
+  if (g.state === 'pre'){
+    segs.push(`<span class="k">${esc(g.away.name)}</span> <span class="dim">at</span> <span class="k">${esc(g.home.name)}</span>`);
+    if (g.odds) segs.push(`<span class="dim">LINE</span> ${esc(g.odds)}`);
+  }
+
+  if (g.venue) segs.push(`<span class="dim">${esc(g.venue)}</span>`);
+  if (g.temp != null) segs.push(`<span class="dim">${esc(g.temp)}°${g.wx ? ', ' + esc(g.wx) : ''}</span>`);
+
+  // everything else around the league
+  const others = games.filter(x => x.id !== g.id);
+  const line = x => x.state === 'pre'
+      ? `${esc(x.away.abbr)}–${esc(x.home.abbr)} <span class="dim">${esc(x.kickoff.toLocaleTimeString([], {hour:'numeric',minute:'2-digit',...TZ}))}</span>`
+      : `${esc(x.away.abbr)} <span class="k">${x.away.score}</span> ${esc(x.home.abbr)} <span class="k">${x.home.score}</span> <span class="dim">${esc(x.state === 'post' ? 'F' : ordinal(x.period) + ' ' + x.clock)}</span>`;
+  if (others.length) segs.push(`<span class="dim">AROUND THE LEAGUE</span>`, ...others.map(line));
+
+  const html = segs.map(s => `<span class="seg">${s}</span>`).join('<span class="sep">•</span>');
+  const tick = $('tick');
+  // doubled so the marquee can loop seamlessly
+  const next = html + '<span class="sep">•</span>' + html + '<span class="sep">•</span>';
+  if (tick.dataset.sig === next) return;
+  tick.dataset.sig = next;
+  tick.innerHTML = next;
+  startMarquee();
+}
+
+function startMarquee(){
+  const tick = $('tick');
+  if (tickAnim) tickAnim.cancel();
+  const w = tick.scrollWidth / 2;
+  const box = $('tickwrap').clientWidth;
+  if (!w || w < box){ tick.style.transform = 'translateY(-50%)'; return; }
+  const pxPerSec = Math.max(60, box / 9);          // steady, readable crawl
+  tickAnim = tick.animate(
+    [{transform:'translate(0,-50%)'}, {transform:`translate(${-w}px,-50%)`}],
+    {duration: (w / pxPerSec) * 1000, iterations: Infinity, easing:'linear'}
+  );
+}
+addEventListener('resize', () => { applyAspect(); fitAll(true); startMarquee(); });
+
+/* ==========================================================================
+   Polling
+   ========================================================================== */
+function chip(msg, bad){
+  const c = $('chip');
+  c.textContent = msg || '';
+  c.classList.toggle('bad', !!bad);
+  c.classList.toggle('show', !!msg);
+}
+
+async function refresh(){
+  if (cfg.mode === 'demo') return;
+  try{
+    const u = new URL(FEED, location.href);
+    u.searchParams.set('_', Date.now());           // defeat any middlebox cache
+    const r = await fetch(u, {cache:'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    games = (d.events || []).map(norm);
+    failures = 0;
+    chip('');
+    tickOnce();
+  }catch(e){
+    failures++;
+    chip(failures > 1 ? 'Feed offline — retrying' : '', true);
+    console.warn('[nflrail] feed error', e);
+    if (!games.length) offlineCard();
+  }finally{
+    schedule();
+  }
+}
+
+// Nothing has ever loaded and the feed is down: say so plainly rather than
+// leaving a dark rectangle under someone's television.
+function offlineCard(){
+  $('stateTxt').textContent = 'No data';
+  $('clock').textContent = 'NFL';
+  $('clock').classList.add('small');
+  $('cd').textContent = '';
+  $('dd').textContent = 'Waiting for the scoreboard feed';
+  $('tick').dataset.sig = '';
+  $('tick').innerHTML = '<span class="seg"><span class="dim">Cannot reach the scoreboard feed. ' +
+    'Check this panel\'s network connection. Press C for setup, D for demo mode.</span></span>';
+  startMarquee();
+}
+
+function schedule(){
+  clearTimeout(pollTimer);
+  if (cfg.mode === 'demo') return;
+  const anyLive = games.some(g => g.state === 'in');
+  const base = anyLive ? POLL_LIVE : POLL_IDLE;
+  const backoff = Math.min(failures, 4) * 5000;
+  pollTimer = setTimeout(refresh, base + backoff + Math.random() * 2000);
+}
+
+function tickOnce(){
+  if (cfg.mode === 'demo'){ render(sim.step()); return; }
+  const g = pick();
+  if (g) { current = g; render(g); }
+}
+// 1 Hz repaint keeps the pre-game countdown and rotation honest between polls
+setInterval(tickOnce, 1000);
+
+/* ==========================================================================
+   Demo simulator — so this can be shown on a Tuesday morning with no
+   football anywhere. Drives a plausible game through the same render path.
+   ========================================================================== */
+const sim = (function(){
+  const A = {id:'sim-a', abbr:'KC',  name:'Chiefs',  logo:'https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/kc.png',  color:'#e31837', alt:'#ffb81c', score:0, record:'2-0'};
+  const H = {id:'sim-h', abbr:'BUF', name:'Bills',   logo:'https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/buf.png', color:'#00338d', alt:'#c60c30', score:0, record:'2-0'};
+  // per-team rosters, so the play text always names someone on offence
+  const roster = {
+    'sim-a': ['P. Mahomes','I. Pacheco','T. Kelce','X. Worthy','R. Rice'],
+    'sim-h': ['J. Allen','J. Cook','K. Shakir','D. Kincaid','R. Davis']
+  };
+  let t = 900, period = 1, poss = A.id, down = 1, dist = 10, yard = 25,
+      last = 'Kickoff returned to the 25.', wp = .5, next = 0;
+
+  function play(){
+    const off = poss === A.id ? A : H, def = poss === A.id ? H : A;
+    const pool = roster[off.id];
+    const who  = pool[Math.floor(Math.random() * pool.length)];
+    const gain = Math.round((Math.random() ** 1.7) * 22) - 2;
+    yard += gain; dist -= gain; down++;
+
+    if (yard >= 100){                                  // touchdown
+      off.score += 7; last = `${who} ${gain} yd TD. Extra point good.`;
+      poss = def.id; yard = 25; down = 1; dist = 10;
+    } else if (down > 4 || (dist > 0 && down === 4)){
+      if (yard > 62 && Math.random() < .55){           // field goal range
+        off.score += 3; last = `${100 - yard + 17} yd field goal is good.`;
+      } else { last = `${off.abbr} punts. Fair catch.`; }
+      poss = def.id; yard = 100 - Math.min(yard + 12, 80); down = 1; dist = 10;
+    } else if (dist <= 0){
+      last = `${who} ${gain > 0 ? 'gains' : 'loses'} ${Math.abs(gain)} for a first down.`;
+      down = 1; dist = 10;
+    } else {
+      last = `${who} ${gain > 0 ? `gains ${gain}` : gain === 0 ? 'no gain' : `loses ${-gain}`}.`;
+    }
+
+    t -= 18 + Math.floor(Math.random() * 22);
+    if (t <= 0){ period++; t = 900; if (period > 4){ period = 1; A.score = 0; H.score = 0; } }
+    wp = Math.min(.97, Math.max(.03, .5 + (H.score - A.score) / 34 + (Math.random() - .5) * .08));
+  }
+
+  function step(){
+    if (Date.now() > next){ play(); next = Date.now() + 4200; }
+    const rz = yard >= 80;
+    const spot = `${poss === A.id ? (yard > 50 ? H.abbr : A.abbr) : (yard > 50 ? A.abbr : H.abbr)} ${yard > 50 ? 100 - yard : yard}`;
+    return {
+      id:'sim', short:'KC @ BUF', state:'in',
+      detail:'', desc:'In Progress', period, clock:`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`,
+      kickoff:new Date(), venue:'Highmark Stadium', nets:['DEMO'], net:'DEMO',
+      week:'SIM', temp:38, wx:'Windy', precip:20,
+      home:{...H}, away:{...A},
+      possId:poss, down:`${['1st','2nd','3rd','4th'][Math.min(down,4)-1]} & ${dist <= 0 ? 'Goal' : dist}`,
+      spot, redzone:rz, hTO:3, aTO:2,
+      lastPlay:last, wpHome:wp, odds:'BUF -1.5', ou:48.5
+    };
+  }
+  return {step};
+})();
+
+/* ==========================================================================
+   Setup drawer
+   ========================================================================== */
+const drawer = $('cfg');
+function openCfg(){
+  drawer.classList.add('on'); document.body.classList.add('ui-on');
+  paintCfg();
+}
+function closeCfg(){ drawer.classList.remove('on'); document.body.classList.remove('ui-on'); }
+
+function paintCfg(){
+  [...$('modeRow').children].forEach(b =>
+    b.classList.toggle('sel', b.dataset.mode === cfg.mode));
+
+  const nets = [...new Set(games.flatMap(g => g.nets))].sort();
+  $('netSel').innerHTML = (nets.length ? nets : ['FOX','CBS','NBC','ESPN','ABC','Prime Video','NFL Network'])
+    .map(n => `<option${n === cfg.net ? ' selected' : ''}>${n}</option>`).join('');
+
+  $('gameSel').innerHTML = games.map(g =>
+    `<option value="${g.id}"${g.id === cfg.game ? ' selected' : ''}>${g.away.abbr} @ ${g.home.abbr} — ${g.detail}</option>`
+  ).join('') || '<option>Waiting for the feed…</option>';
+
+  $('arSel').value = cfg.ar;
+  $('fillBtn').classList.toggle('sel', !!cfg.fill);
+
+  const base = location.origin + location.pathname;
+  $('deployHint').innerHTML =
+    `Six panels, one per TV — open each in its own kiosk window:<br>` +
+    [1,2,3,4,5,6].map(i => `<code>${base}?panel=${i}&amp;net=${['FOX','CBS','NBC','ESPN','Prime Video','FOX'][i-1]}</code>`).join('<br>') +
+    `<br><br>Settings also persist per-browser, so you can configure a panel once and reboot it.`;
+}
+
+$('modeRow').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  cfg.mode = b.dataset.mode; store.set('mode', cfg.mode);
+  failures = 0; lastRotate = 0;
+  if (cfg.mode === 'demo') clearTimeout(pollTimer); else refresh();
+  paintCfg(); tickOnce();
+});
+$('netSel').addEventListener('change', e => {
+  cfg.net = e.target.value; store.set('net', cfg.net);
+  cfg.mode = 'network'; store.set('mode', cfg.mode); paintCfg(); tickOnce();
+});
+$('gameSel').addEventListener('change', e => {
+  cfg.game = e.target.value; store.set('game', cfg.game);
+  cfg.mode = 'game'; store.set('mode', cfg.mode); paintCfg(); tickOnce();
+});
+$('arSel').addEventListener('change', e => {
+  cfg.ar = e.target.value; store.set('ar', cfg.ar); applyAspect(); startMarquee();
+});
+$('fillBtn').addEventListener('click', () => {
+  cfg.fill = !cfg.fill; store.set('fill', cfg.fill); applyAspect(); startMarquee(); paintCfg();
+});
+const goFs = () => (document.fullscreenElement ? document.exitFullscreen() :
+                    document.documentElement.requestFullscreen().catch(()=>{}));
+$('fsBtn').addEventListener('click', goFs);
+$('cfgClose').addEventListener('click', closeCfg);
+
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (k === 'escape') return closeCfg();
+  if (k === 'c') return drawer.classList.contains('on') ? closeCfg() : openCfg();
+  if (k === 'f') return goFs();
+  if (k === 'r') return refresh();
+  if (k === 'd'){
+    cfg.mode = cfg.mode === 'demo' ? 'auto' : 'demo';
+    store.set('mode', cfg.mode);
+    if (cfg.mode === 'demo') clearTimeout(pollTimer); else refresh();
+    return tickOnce();
+  }
+  if (k === 'arrowright' || k === 'arrowleft'){
+    if (!games.length) return;
+    const i = Math.max(0, games.findIndex(g => g.id === (current && current.id)));
+    const n = (i + (k === 'arrowright' ? 1 : games.length - 1)) % games.length;
+    cfg.mode = 'game'; cfg.game = games[n].id;
+    store.set('mode', cfg.mode); store.set('game', cfg.game);
+    tickOnce();
+  }
+});
+// touch panels get a long-press instead of a keyboard
+let held;
+stage.addEventListener('pointerdown', () => { held = setTimeout(openCfg, 900); });
+['pointerup','pointercancel','pointerleave'].forEach(ev =>
+  stage.addEventListener(ev, () => clearTimeout(held)));
+
+['aLogo','hLogo','bLogo'].forEach(id => {
+  const el = $(id);
+  el.addEventListener('error', () => { el.style.visibility = 'hidden'; });
+  el.addEventListener('load',  () => { el.style.visibility = 'visible'; });
+});
+
+/* ---------- go ---------- */
+refresh();
+if (cfg.mode === 'demo') tickOnce();
+</script>
+</body>
+</html>
